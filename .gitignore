@@ -1,0 +1,7 @@
+iso_root/
+zig-out/
+zig-cache/
+build/
+virtio-net.pcap
+disk.tar
+disk.o

@@ -1,0 +1,10 @@
+.github
+.gitignore
+.gitmodules
+build
+zig-out
+zig-cache
+.gdbinit
+disk.o
+disk.tar
+README.md

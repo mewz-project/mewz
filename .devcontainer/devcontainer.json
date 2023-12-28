@@ -1,0 +1,7 @@
+{
+	"name": "Mewz Dev Container",
+	"build": {
+		"context": "..",
+		"dockerfile": "./Dockerfile"
+	},
+}

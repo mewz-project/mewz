@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "timeouts.h": "c",
+        "init.h": "c",
+        "opt.h": "c",
+        "debug.h": "c",
+        "arch.h": "c"
+    }
+}
