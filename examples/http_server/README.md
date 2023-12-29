@@ -34,5 +34,8 @@ curl localhost:1234
 ```
 
 > [!NOTE]
+> To quit the QEMU process, press Ctrl+A, then X.
+
+> [!NOTE]
 > QEMU's port 1234 is mapped to localhost:1234. But the other ports are not mapped.
 > To map another port, edit the QEMU's option.
