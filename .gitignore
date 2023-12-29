@@ -5,3 +5,6 @@ build/
 virtio-net.pcap
 disk.tar
 disk.o
+target/
+*.ll
+*.o
