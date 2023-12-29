@@ -14,7 +14,7 @@ Mewz is **a specialized kernel designed for running Wasm**. Mewz runs a single W
 
 ## Quick Start
 
-There are some example programs. Please check out [examples](https://github.com/Mewz-project/Mewz-private/tree/main/examples).
+There are some example programs. Please check out [examples](https://github.com/Mewz-project/Mewz/tree/main/examples).
 
 ### Option1: Docker
 
