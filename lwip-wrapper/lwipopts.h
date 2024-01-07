@@ -47,12 +47,12 @@
 #define MEMP_NUM_SYS_TIMEOUT		(LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1)
 #endif
 
-#define TCP_LISTEN_BACKLOG         128
+#define TCP_LISTEN_BACKLOG         1024
 
-#define MEMP_NUM_TCP_PCB           128
-#define MEMP_NUM_TCP_SEG           128
-#define MEMP_NUM_PBUF              128
-#define MEMP_NUM_TCP_PCB_LISTEN    128
+#define MEMP_NUM_TCP_PCB           1024
+#define MEMP_NUM_TCP_SEG           1024
+#define MEMP_NUM_PBUF              1024
+#define MEMP_NUM_TCP_PCB_LISTEN    1024
 
 /* --- DHCP --- */
 #define DHCP_DOES_ARP_CHECK             0 /* Don't Check Binded Addr */
