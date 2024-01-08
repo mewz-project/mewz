@@ -9,8 +9,10 @@ const Socket = tcpip.Socket;
 const SpinLock = sync.SpinLock;
 const OpenedFile = fs.OpenedFile;
 
-var streams_internal: [1024]?Stream = init: {
-    var initial_fd_table: [1024]?Stream = undefined;
+const STREAM_NUM = 2048;
+
+var streams_internal: [STREAM_NUM]?Stream = init: {
+    var initial_fd_table: [STREAM_NUM]?Stream = undefined;
     // set stdin, stdout, and stderr to the uart
     initial_fd_table[0] = Stream{ .uart = void{} };
     initial_fd_table[1] = Stream{ .uart = void{} };
@@ -19,12 +21,10 @@ var streams_internal: [1024]?Stream = init: {
 };
 
 // thread safe file descriptor table
-pub var fd_table = FdTable{ .streams = SpinLock([1024]?Stream).new(&streams_internal) };
+pub var fd_table = FdTable{ .streams = SpinLock([STREAM_NUM]?Stream).new(&streams_internal) };
 
 const FdTable = struct {
-    const FD_SIZE = 1024;
-
-    streams: SpinLock([FD_SIZE]?Stream),
+    streams: SpinLock([STREAM_NUM]?Stream),
     index: usize = 0,
 
     const Self = @This();
@@ -44,10 +44,10 @@ const FdTable = struct {
     pub fn set(self: *Self, stream: Stream) Stream.Error!i32 {
         const streams = self.streams.acquire();
         defer self.streams.release();
-        var i = (self.index + 1) % FD_SIZE;
+        var i = (self.index + 1) % STREAM_NUM;
         defer self.index = i;
 
-        while (i != self.index) : (i = (i + 1) % FD_SIZE) {
+        while (i != self.index) : (i = (i + 1) % STREAM_NUM) {
             if (streams.*[i] == null) {
                 streams.*[i] = stream;
                 const set_stream = &streams.*[i];
