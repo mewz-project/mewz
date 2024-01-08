@@ -94,23 +94,31 @@ pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i3
 }
 
 pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.C) WasiError {
-    log.debug.printf("WASI fd_read: {d} 0x{x} {d} 0x{x}\n", .{ fd, buf_iovec_addr, vec_len, size_addr });
+    log.debug.printf("WASI fd_read: fd={d} buf_iovec_addr=0x{x} vec_len={d} size_addr=0x{x}\n", .{ fd, buf_iovec_addr, vec_len, size_addr });
 
     @setRuntimeSafety(false);
 
     // get stream from fd
     var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
 
-    // TODO: if iovec's length is 1, avoid memory allocation
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
     const iovecs = iovec_ptr[0..@as(usize, @intCast(vec_len))];
-    for (0..@as(usize, @intCast(vec_len))) |i| {
-        const iovec = iovecs[i];
-        const buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(iovec.buf)) + linear_memory_offset));
-        const nread = s.read(buf[0..iovec.buf_len]) catch return WasiError.INVAL;
-        const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
-        size_ptr.* = @as(i32, @intCast(nread));
-    }
+
+    // TODO: if iovec's length is 1, avoid memory allocation
+    const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
+    defer heap.runtime_allocator.free(buf);
+
+    const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
+
+    const nread = s.read(buf) catch |err| {
+        switch (err) {
+            tcpip.Socket.Error.Again => return WasiError.AGAIN,
+            else => return WasiError.INVAL,
+        }
+    };
+    _ = copySliceToIoVecs(buf, iovecs);
+
+    size_ptr.* = @as(i32, @intCast(nread));
 
     return WasiError.SUCCESS;
 }
@@ -206,6 +214,8 @@ pub export fn path_open(fd: i32, dirflags: i32, path_addr: i32, path_length: i32
     // get path name
     var path_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(path_addr)) + linear_memory_offset));
     const path_name = path_ptr[0..@as(usize, @intCast(path_length))];
+
+    log.debug.printf("file path: {s}\n", .{path_name});
 
     // get stream from fd
     const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
