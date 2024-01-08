@@ -64,7 +64,7 @@ pub const Directory = struct {
     pub fn getFileByName(self: *Self, file_name: []const u8) ?*RegularFile {
         for (&files) |*file| {
             if (file.name.len != self.name.len + file_name.len) {
-                break;
+                continue;
             }
 
             if (std.mem.eql(u8, file.name[0..self.name.len], self.name) and
@@ -196,5 +196,5 @@ pub fn init() void {
         log.fatal.print("failed to set root directory\n");
         return;
     };
-    log.debug.printf("root directory fd: {d}\n", .{new_fd});
+    log.debug.printf("root directory: fd={d}, path={s}\n", .{ new_fd, dir.name });
 }
