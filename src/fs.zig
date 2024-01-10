@@ -47,8 +47,8 @@ pub const OpenedFile = struct {
     const Error = error{Failed};
 
     pub fn read(self: *Self, buffer: []u8) Stream.Error!usize {
-        const nread = self.inner.data.len - self.pos;
-        @memcpy(buffer[0..nread], self.inner.data[self.pos .. self.pos + nread]);
+        const nread = @min(buffer.len, self.inner.data.len - self.pos);
+        @memcpy(buffer[0..nread], self.inner.data[self.pos..][0..nread]);
         self.pos = self.pos + nread;
         return nread;
     }
