@@ -141,13 +141,20 @@ pub const Socket = struct {
         return self.read(buffer);
     }
 
-    pub fn send(self: *Self, buffer: []u8) Error!void {
+    pub fn send(self: *Self, buffer: []u8) Error!usize {
+        const locked_lwip = lwip.acquire();
+        defer lwip.release();
+
         const pcb = @as(*anyopaque, @ptrFromInt(self.pcb_addr));
-        const err = lwip.acquire().lwip_send(pcb, buffer.ptr, @as(u16, @intCast(buffer.len)));
-        lwip.release();
+
+        const len = @min(buffer.len, locked_lwip.lwip_tcp_sndbuf(pcb));
+        const err = locked_lwip.lwip_send(pcb, buffer.ptr, len);
         if (err < 0) {
+            log.debug.printf("lwip_send failed: {d}\n", .{err});
             return Error.Failed;
         }
+
+        return len;
     }
 
     pub fn connect(self: *Self, ip_addr: *anyopaque, port: i32) Error!void {

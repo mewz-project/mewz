@@ -176,6 +176,10 @@ void lwip_accept(struct tcp_pcb *pcb) {
   tcp_accept(pcb, accept_callback);
 }
 
+u16_t lwip_tcp_sndbuf(struct tcp_pcb *pcb) {
+  return tcp_sndbuf(pcb);
+}
+
 err_t lwip_send(struct tcp_pcb *pcb, u8_t *data, u16_t size) {
   err_t err = tcp_write(pcb, data, size, 1);
   if (err != ERR_OK) {
