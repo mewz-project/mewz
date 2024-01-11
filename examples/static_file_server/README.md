@@ -23,7 +23,7 @@ Now you can run it on Mewz.
 
 ```sh
 cd ../..
-zig build -Dapp-obj=examples/hello-server/wasm.o -Dfs-path=examples/static_file_server/files run
+zig build -Dapp-obj=examples/hello-server/wasm.o -Ddir=examples/static_file_server/files run
 ```
 
 You can access the server at `localhost:1234`.
