@@ -1,6 +1,6 @@
-# http_server
+# hello_server
 
-This is a simple HTTP server program.
+This is a simple HTTP hello server program.
 
 ## How to run on Mewz
 
@@ -9,21 +9,21 @@ The following steps can be executed within the Dev Container.
 First, build the program into Wasm.
 
 ```sh
-cd examples/http_server
+cd examples/hello_server
 cargo build --target wasm32-wasi
 ```
 
 Then, convert it into a native object file with Wasker.
 
 ```sh
-wasker target/wasm32-wasi/debug/http_server.wasm
+wasker target/wasm32-wasi/debug/hello_server.wasm
 ```
 
 Now you can run it on Mewz.
 
 ```sh
 cd ../..
-zig build -Dapp-obj=examples/http_server/wasm.o run
+zig build -Dapp-obj=examples/hello_server/wasm.o run
 ```
 
 You can access the server at `localhost:1234`.
