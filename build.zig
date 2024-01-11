@@ -76,7 +76,7 @@ pub fn build(b: *Build) !void {
         kernel.addObjectFile(Build.LazyPath{ .path = p });
     }
     if (fs_path_option) |_| {
-        kernel.addObjectFile(Build.LazyPath{ .path = "disk.o" });
+        kernel.addObjectFile(Build.LazyPath{ .path = "build/disk.o" });
     }
     kernel.addOptions("options", kernel_options);
     b.installArtifact(kernel);
