@@ -1,0 +1,9 @@
+[package]
+name = "static_file_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytes = "1"
+tokio_wasi = { version = "1", features = ["rt", "macros", "net", "time", "io-util"]}
+warp_wasi = "0.3"
