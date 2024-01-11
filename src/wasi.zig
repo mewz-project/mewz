@@ -104,9 +104,15 @@ pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
     const iovecs = iovec_ptr[0..@as(usize, @intCast(vec_len))];
 
-    // TODO: if iovec's length is 1, avoid memory allocation
-    const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
-    defer heap.runtime_allocator.free(buf);
+    var buf: []u8 = undefined;
+    if (iovecs.len == 1) {
+        // fast path: avoid memory allocation and copy
+        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
+        const len = @as(usize, @intCast(iovecs[0].buf_len));
+        buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+    } else {
+        buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
+    }
 
     const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
 
@@ -116,7 +122,11 @@ pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32
             else => return WasiError.INVAL,
         }
     };
-    _ = copySliceToIoVecs(buf, iovecs);
+
+    if (iovecs.len > 1) {
+        _ = copySliceToIoVecs(buf, iovecs);
+        heap.runtime_allocator.free(buf);
+    }
 
     size_ptr.* = @as(i32, @intCast(nread));
 
@@ -387,11 +397,18 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
         else => return WasiError.BADF,
     };
 
-    // TODO: avoid memory copy by non-blocking recv
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(iovec_addr)) + linear_memory_offset));
     const iovecs = iovec_ptr[0..@as(usize, @intCast(buf_len))];
-    const buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
-    defer heap.runtime_allocator.free(buf);
+
+    var buf: []u8 = undefined;
+    if (iovecs.len == 1) {
+        // fast path: avoid memory allocation and copy
+        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
+        const len = @as(usize, @intCast(iovecs[0].buf_len));
+        buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+    } else {
+        buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
+    }
 
     const recv_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(recv_len_addr)) + linear_memory_offset));
     const oflags_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(oflags_addr)) + linear_memory_offset));
@@ -402,7 +419,11 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
             else => return WasiError.INVAL,
         }
     };
-    _ = copySliceToIoVecs(buf, iovecs);
+
+    if (iovecs.len > 1) {
+        _ = copySliceToIoVecs(buf, iovecs);
+        heap.runtime_allocator.free(buf);
+    }
 
     recv_len_ptr.* = @as(i32, @intCast(recv_len));
     oflags_ptr.* = 0;
