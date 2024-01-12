@@ -199,9 +199,14 @@ pub export fn fd_prestat_dir_name(fd: i32, path_addr: i32, max_path_len: i32) Wa
     switch (s.*) {
         Stream.dir => {
             const dir = s.dir;
-            var path_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(path_addr)) + linear_memory_offset));
+
             const path_name = dir.name;
-            @memcpy(path_ptr[0..@as(usize, @intCast(max_path_len))], path_name[0..@as(usize, @intCast(max_path_len))]);
+            const len = @min(@as(usize, @intCast(max_path_len)), path_name.len);
+
+            var path_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(path_addr)) + linear_memory_offset));
+
+            @memcpy(path_ptr[0..len], path_name[0..len]);
+
             return WasiError.SUCCESS;
         },
         else => return WasiError.BADF,
