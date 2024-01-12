@@ -85,10 +85,10 @@ pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i3
     const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
     defer heap.runtime_allocator.free(buf);
 
-    s.write(buf) catch return WasiError.INVAL;
+    const len = s.write(buf) catch return WasiError.INVAL;
 
     const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
-    size_ptr.* = @as(i32, @intCast(buf.len));
+    size_ptr.* = @as(i32, @intCast(len));
 
     return WasiError.SUCCESS;
 }
@@ -423,8 +423,9 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
 
     const send_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(send_len_addr)) + linear_memory_offset));
 
-    socket.send(buf) catch return WasiError.INVAL;
-    send_len_ptr.* = @as(i32, @intCast(buf.len));
+    const sent_len = socket.send(buf) catch return WasiError.INVAL;
+    log.debug.printf("WASI sock_send: sent {d} bytes\n", .{sent_len});
+    send_len_ptr.* = @as(i32, @intCast(sent_len));
 
     return WasiError.SUCCESS;
 }

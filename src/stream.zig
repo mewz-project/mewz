@@ -95,9 +95,9 @@ pub const Stream = union(enum) {
         };
     }
 
-    pub fn write(self: *Self, buffer: []u8) Error!void {
+    pub fn write(self: *Self, buffer: []u8) Error!usize {
         return switch (self.*) {
-            Self.uart => uart.puts(buffer),
+            Self.uart => uart.write(buffer),
             Self.socket => |*sock| sock.send(buffer),
             Self.opened_file => @panic("unimplemented"),
             Self.dir => @panic("unimplemented"),
