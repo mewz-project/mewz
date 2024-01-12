@@ -203,12 +203,12 @@ pub const ShutdownFlag = enum(i32) {
     }
 };
 
-pub const IoVec = packed struct {
+pub const IoVec = extern struct {
     buf: u32,
     buf_len: u32,
 };
 
-pub const FileStat = packed struct {
+pub const FileStat = extern struct {
     dev: u64,
     ino: u64,
     file_type: FileType,
@@ -219,14 +219,14 @@ pub const FileStat = packed struct {
     ctim: u64,
 };
 
-pub const FdStat = packed struct {
+pub const FdStat = extern struct {
     file_type: FileType,
     flags: u16,
     rights_base: u64,
     rights_inheriting: u64,
 };
 
-pub const Prestat = packed struct {
+pub const Prestat = extern struct {
     tag: u8,
     pr_name_len: u32,
 };
