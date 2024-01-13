@@ -22,7 +22,7 @@ fi
 # archive the directory with ustar format
 # note: the root path of the archive must be `.`
 mkdir -p build
-tar -cf disk.tar --format=ustar -C $dir_path .
+tar -cf build/disk.tar --format=ustar -C $dir_path .
 echo "tar archive created"
 
 # check if llvm-objcopy is installed
