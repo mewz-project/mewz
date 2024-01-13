@@ -7,8 +7,7 @@ const Stream = stream.Stream;
 
 const FILES_MAX: usize = 32;
 
-extern const _binary_disk_tar_start: [*]u8;
-extern const _binary_disk_tar_size: [*]u8;
+extern const _binary_build_disk_tar_start: [*]u8;
 
 pub var files: [FILES_MAX]RegularFile = undefined;
 pub var dirs: [FILES_MAX]Directory = undefined;
@@ -99,7 +98,7 @@ pub fn init() void {
     }
 
     log.debug.printf("FILES_MAX: {d}\n", .{FILES_MAX});
-    const disk_pointer = @as([*]u8, @ptrCast(&_binary_disk_tar_start));
+    const disk_pointer = @as([*]u8, @ptrCast(&_binary_build_disk_tar_start));
 
     var off: usize = 0;
     var i: usize = 0;

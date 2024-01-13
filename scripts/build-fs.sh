@@ -21,6 +21,7 @@ fi
 
 # archive the directory with ustar format
 # note: the root path of the archive must be `.`
+mkdir -p build
 tar -cf disk.tar --format=ustar -C $dir_path .
 echo "tar archive created"
 
@@ -32,5 +33,5 @@ then
 fi
 
 # convert the archive to binary
-llvm-objcopy -Ibinary -Oelf64-x86-64 disk.tar disk.o
+llvm-objcopy -Ibinary -Oelf64-x86-64 build/disk.tar build/disk.o
 echo "disk.o created"
