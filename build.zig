@@ -28,7 +28,7 @@ pub fn build(b: *Build) !void {
         kernel_options.addOption([]const u8, "log_level", "fatal");
     }
 
-    const fs_path_option = b.option([]const u8, "fs-path", "path to filesystem");
+    const fs_path_option = b.option([]const u8, "dir", "path to filesystem");
     if (fs_path_option) |p| {
         std.debug.print("building fs: {s}\n", .{p});
         kernel_options.addOption(bool, "has_fs", true);
