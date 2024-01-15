@@ -53,6 +53,18 @@ pub export fn clock_time_get(clock_id: i32, precision: i64, time_addr: i32) Wasi
     return WasiError.SUCCESS;
 }
 
+pub export fn args_get(argv: i32, argv_buf: i32) callconv(.C) WasiError {
+    _ = argv;
+    _ = argv_buf;
+    return WasiError.SUCCESS;
+}
+
+pub export fn args_sizes_get(retptr0: i32, retptr1: i32) callconv(.C) WasiError {
+    _ = retptr0;
+    _ = retptr1;
+    return WasiError.SUCCESS;
+}
+
 // env_addrs: a pointer to an array of pointers to each environment variable, formed like KEY=VALUE\0
 // env_buf_addr: a pointer to a buffer that will be filled with the environment variables, formed like KEY=VALUE\0KEY=VALUE\0
 pub export fn environ_get(env_addrs: i32, env_buf_addr: i32) WasiError {
