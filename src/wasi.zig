@@ -82,6 +82,18 @@ pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i3
 
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
     const iovecs = iovec_ptr[0..@as(usize, @intCast(vec_len))];
+
+    if (iovecs.len == 1) {
+        // fast path: avoid memory allocation and copy
+        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
+        const len = @as(usize, @intCast(iovecs[0].buf_len));
+        const buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+        const nwritten = s.write(buf) catch return WasiError.INVAL;
+        const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
+        size_ptr.* = @as(i32, @intCast(nwritten));
+        return WasiError.SUCCESS;
+    }
+
     const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
     defer heap.runtime_allocator.free(buf);
 
@@ -444,6 +456,18 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
 
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
     const iovecs = iovec_ptr[0..@as(usize, @intCast(buf_len))];
+
+    if (iovecs.len == 1) {
+        // fast path: avoid memory allocation and copy
+        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
+        const len = @as(usize, @intCast(iovecs[0].buf_len));
+        const buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+        const sent_len = socket.send(buf) catch return WasiError.INVAL;
+        const send_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(send_len_addr)) + linear_memory_offset));
+        send_len_ptr.* = @as(i32, @intCast(sent_len));
+        return WasiError.SUCCESS;
+    }
+
     const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
     defer heap.runtime_allocator.free(buf);
 
