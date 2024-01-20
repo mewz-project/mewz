@@ -42,16 +42,13 @@
 #define SYS_LIGHTWEIGHT_PROT            0
 #define NO_SYS                          1
 #define MEM_ALIGNMENT                   4 /* 4-byte alignment */
-#define MEM_SIZE                        (16*1024*1024) /* Heap size (16MB) */
-#ifdef WIREGUARD_VMM
-#define MEMP_NUM_SYS_TIMEOUT		(LWIP_NUM_SYS_TIMEOUT_INTERNAL + 1)
-#endif
+#define MEM_SIZE                        (256*1024*1024) /* Heap size (256MB) */
+#define MEMP_NUM_PBUF                   32768
+#define MEMP_NUM_TCP_SEG                32768
 
 #define TCP_LISTEN_BACKLOG         1024
 
 #define MEMP_NUM_TCP_PCB           1024
-#define MEMP_NUM_TCP_SEG           1024
-#define MEMP_NUM_PBUF              1024
 #define MEMP_NUM_TCP_PCB_LISTEN    1024
 
 /* --- DHCP --- */
@@ -71,7 +68,8 @@
 
 /* --- PBuf --- */
 #define PBUF_LINK_HLEN                  16
-#define PBUF_POOL_BUFSIZE               LWIP_MEM_ALIGN_SIZE(TCP_MSS+40+PBUF_LINK_HLEN)
+#define PBUF_POOL_SIZE          8192
+#define PBUF_POOL_BUFSIZE       8192
 
 /* --- APIs --- */
 #define LWIP_NETCONN                    0 /* Use netconn API */
