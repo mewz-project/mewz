@@ -42,7 +42,7 @@
 #define SYS_LIGHTWEIGHT_PROT            0
 #define NO_SYS                          1
 #define MEM_ALIGNMENT                   4 /* 4-byte alignment */
-#define MEM_SIZE                        (256*1024*1024) /* Heap size (16MB) */
+#define MEM_SIZE                        (256*1024*1024) /* Heap size (256MB) */
 #define MEMP_NUM_PBUF                   32768
 #define MEMP_NUM_TCP_SEG                32768
 
