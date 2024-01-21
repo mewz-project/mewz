@@ -454,7 +454,7 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
 
                 const cfg_type = pci_cap.data[3];
                 const bar_index = pci_cap.data[4];
-                var offset: i32 = 0;
+                var offset: u32 = 0;
                 @memcpy(@as([*]u8, @ptrCast(&offset)), pci_cap.data[8..12]);
                 log.debug.printf("offset: {d}\n", .{offset});
                 const bar = dev.config.bar(bar_index);
