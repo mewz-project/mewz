@@ -2,6 +2,7 @@ const common = @import("common.zig");
 const heap = @import("../../heap.zig");
 const interrupt = @import("../../interrupt.zig");
 const log = @import("../../log.zig");
+const lwip = @import("../../lwip.zig");
 const mem = @import("../../mem.zig");
 const pci = @import("../../pci.zig");
 
@@ -154,6 +155,11 @@ const VirtioNet = struct {
                 rq.enqueue(chain.desc_list.?);
             }
         }
+
+        lwip.acquire().sys_check_timeouts();
+        lwip.release();
+
+        self.virtio.transport.notifyQueue(self.receiveq());
     }
 };
 
