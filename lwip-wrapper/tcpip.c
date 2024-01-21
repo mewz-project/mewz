@@ -124,12 +124,14 @@ err_t accept_callback(void *arg, struct tcp_pcb *newpcb, err_t err) {
 
   // TODO: handle error
   if (err != ERR_OK) {
+    printf("accept_callback: err = {}\n", err);
     return err;
   }
 
   int *new_fd = notifyAccepted(newpcb, *fd);
-  if (*new_fd < -1) {
-    return ERR_MEM;
+  if (*new_fd == NULL) {
+    tcp_abort(newpcb);
+    return ERR_ABRT;
   }
 
   if (socketPush(*fd, (u8_t *)new_fd, sizeof(int)) < 0) {
