@@ -502,6 +502,8 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
         }
 
         pub fn notifyQueue(self: *Self, virtq: *Virtqueue) void {
+            self.common_config.queue_select = virtq.index;
+            @fence(std.builtin.AtomicOrder.SeqCst);
             const offset = self.notify_off_multiplier * self.common_config.queue_notify_off;
             const addr = self.notify + @as(usize, @intCast(offset));
             @as(*volatile u16, @ptrFromInt(addr)).* = virtq.index;
