@@ -47,6 +47,7 @@ const PageMapEntry = packed struct {
     var free_pages_lock = SpinLock(?*FreeList).new(&free_pages_internal);
 
     extern var __kernel_pml4: [512]PageMapEntry;
+    var page_table_lock = SpinLock([512]PageMapEntry).new(&__kernel_pml4);
 
     const Self = @This();
 
@@ -90,10 +91,12 @@ const PageMapEntry = packed struct {
         return @as(*[512]PageMapEntry, @ptrFromInt(@intFromPtr(page)));
     }
 
-    // get the page table entry for the given virtual address
-    // if the entry is not present, allocate a new table
+    // Get the page table entry for the given virtual address.
+    // If the entry is not present, allocate a new table.
+    // Note: The caller must release the page table lock
     fn lookupEntry(v_addr: usize) *Self {
-        var table = &__kernel_pml4;
+        // This lock must be released by the caller.
+        var table = page_table_lock.acquire();
         var entry: *Self = undefined;
         const levels = [_]u6{ 4, 3, 2, 1 };
         for (levels) |level| {
@@ -136,6 +139,7 @@ const PageMapEntry = packed struct {
         // get the page table entry for the given virtual address
         // the virtual address is aligned to the block size, so the pages are in the same table
         const pt_ptr = lookupEntry(v_addr);
+        defer page_table_lock.release();
         var pt_iterator = @as([*]PageMapEntry, @ptrCast(pt_ptr));
 
         // map the pages of the block
@@ -227,6 +231,7 @@ pub fn allocBlock() usize {
 
 pub fn getPaddr(v_addr: usize) usize {
     const entry = PageMapEntry.lookupEntry(v_addr);
+    defer PageMapEntry.page_table_lock.release();
     const page_addr = entry.getPointAddr();
     var offset: usize = undefined;
     if (entry.huge_page == 1) {
