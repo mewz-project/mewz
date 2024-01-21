@@ -311,8 +311,9 @@ export fn socketPush(fd: i32, ptr: [*]u8, len: usize) i32 {
     };
 
     const buffer = ptr[0..len];
-    socket.buffer.acquire().write(buffer) catch return -1;
-    socket.buffer.release();
+    const sock_buf = socket.buffer.acquire();
+    defer socket.buffer.release();
+    sock_buf.write(buffer) catch return -1;
     return 0;
 }
 
