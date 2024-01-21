@@ -150,7 +150,7 @@ pub const Socket = struct {
         const len = @min(buffer.len, locked_lwip.lwip_tcp_sndbuf(pcb));
         const err = locked_lwip.lwip_send(pcb, buffer.ptr, len);
         if (err < 0) {
-            log.debug.printf("lwip_send failed: {d}\n", .{err});
+            log.warn.printf("lwip_send failed: {d}\n", .{err});
             return Error.Failed;
         }
 
