@@ -129,7 +129,7 @@ err_t accept_callback(void *arg, struct tcp_pcb *newpcb, err_t err) {
   }
 
   int *new_fd = notifyAccepted(newpcb, *fd);
-  if (*new_fd == NULL) {
+  if (new_fd == NULL) {
     tcp_abort(newpcb);
     return ERR_ABRT;
   }
