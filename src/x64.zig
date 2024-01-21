@@ -1,7 +1,11 @@
+const std = @import("std");
+
 pub const EFLAGS_IF = 0x00000200;
 
 pub fn init() void {
     enableSSE();
+    @fence(std.builtin.AtomicOrder.SeqCst);
+    enableAVX();
 }
 
 pub fn in(comptime Type: type, port: u16) Type {
@@ -143,7 +147,23 @@ fn enableSSE() void {
         \\or ax, 0x2
         \\mov cr0, rax
         \\mov rax, cr4
-        \\or ax, 3 << 9
+        \\or rax, 643 << 9
         \\mov cr4, rax
+    );
+}
+
+fn enableAVX() void {
+    asm volatile (
+        \\.intel_syntax noprefix
+        \\push rax
+        \\push rcx
+        \\push rdx
+        \\xor rcx, rcx
+        \\xgetbv
+        \\or eax, 7
+        \\xsetbv
+        \\pop rdx
+        \\pop rcx
+        \\pop rax
     );
 }
