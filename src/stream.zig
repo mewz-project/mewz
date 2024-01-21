@@ -131,7 +131,7 @@ pub const Stream = union(enum) {
         }
     }
 
-    pub fn bytesCanRead(self: *Self) usize {
+    pub fn bytesCanRead(self: *Self) ?usize {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanRead(),
@@ -140,7 +140,7 @@ pub const Stream = union(enum) {
         };
     }
 
-    pub fn bytesCanWrite(self: *Self) usize {
+    pub fn bytesCanWrite(self: *Self) ?usize {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanWrite(),

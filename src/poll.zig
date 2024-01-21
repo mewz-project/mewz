@@ -1,4 +1,5 @@
 const heap = @import("heap.zig");
+const log = @import("log.zig");
 const stream = @import("stream.zig");
 const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
@@ -21,36 +22,28 @@ const Subscription = struct {
     pub fn toEvent(self: *Self) ?Event {
         switch (self.target) {
             .fd_read => |s| {
-                const nbytes = s.bytesCanRead();
-                if (nbytes > 0) {
-                    return Event{
-                        .userdata = self.userdata,
-                        .err = WasiError.SUCCESS.toU16(),
-                        .eventtype = EventType.fd_read.toInt(),
-                        .event_fd_readwrite = EventFdReadwrite{
-                            .nbytes = nbytes,
-                            .flags = s.flags(),
-                        },
-                    };
-                } else {
-                    return null;
-                }
+                const nbytes = s.bytesCanRead() orelse return null;
+                return Event{
+                    .userdata = self.userdata,
+                    .err = WasiError.SUCCESS.toU16(),
+                    .eventtype = EventType.fd_read.toInt(),
+                    .event_fd_readwrite = EventFdReadwrite{
+                        .nbytes = nbytes,
+                        .flags = s.flags(),
+                    },
+                };
             },
             .fd_write => |s| {
-                const nbytes = s.bytesCanWrite();
-                if (nbytes > 0) {
-                    return Event{
-                        .userdata = self.userdata,
-                        .err = WasiError.SUCCESS.toU16(),
-                        .eventtype = EventType.fd_write.toInt(),
-                        .event_fd_readwrite = EventFdReadwrite{
-                            .nbytes = nbytes,
-                            .flags = s.flags(),
-                        },
-                    };
-                } else {
-                    return null;
-                }
+                const nbytes = s.bytesCanWrite() orelse return null;
+                return Event{
+                    .userdata = self.userdata,
+                    .err = WasiError.SUCCESS.toU16(),
+                    .eventtype = EventType.fd_write.toInt(),
+                    .event_fd_readwrite = EventFdReadwrite{
+                        .nbytes = nbytes,
+                        .flags = s.flags(),
+                    },
+                };
             },
             .clock => |c| {
                 if (c.isFinished()) {
@@ -152,4 +145,23 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
     }
 
     return @as(i32, @intCast(nevents));
+}
+
+fn dumpSubscriptions(subscriptions: []?Subscription) void {
+    for (subscriptions) |sub| {
+        if (sub == null) {
+            continue;
+        }
+        switch (sub.?.target) {
+            Target.fd_read => |s| {
+                log.debug.printf("fd_read: {}\n", .{s.socket.fd});
+            },
+            .fd_write => |s| {
+                log.debug.printf("fd_write: {}\n", .{s.socket.fd});
+            },
+            .clock => {
+                log.debug.print("clock\n");
+            },
+        }
+    }
 }

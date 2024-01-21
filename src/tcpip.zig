@@ -260,10 +260,18 @@ pub const Socket = struct {
         lwip.release();
     }
 
-    pub fn bytesCanRead(self: *Self) usize {
+    pub fn bytesCanRead(self: *Self) ?usize {
         const buf = self.buffer.acquire();
         defer self.buffer.release();
         const nbytes = buf.availableToRead();
+
+        if (nbytes == 0) {
+            if (!self.is_listening and !self.is_connected) {
+                return 0;
+            }
+
+            return null;
+        }
 
         // if the socket is listening, return the number of connections available
         if (self.is_listening) {
@@ -273,10 +281,20 @@ pub const Socket = struct {
         return nbytes;
     }
 
-    pub fn bytesCanWrite(self: *Self) usize {
+    pub fn bytesCanWrite(self: *Self) ?usize {
+        if (!self.is_listening and !self.is_connected) {
+            return 0;
+        }
+
         const buf = self.buffer.acquire();
         defer self.buffer.release();
-        return buf.availableToWrite();
+        const nbytes = buf.availableToWrite();
+
+        if (nbytes == 0) {
+            return null;
+        }
+
+        return nbytes;
     }
 
     fn alreadyClosed(self: *Self) bool {
