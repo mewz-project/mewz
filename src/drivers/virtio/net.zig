@@ -145,14 +145,19 @@ const VirtioNet = struct {
         if (isr.isQueue()) {
             const rq = self.receiveq();
             while (rq.last_used_idx != rq.used.idx().*) {
-                const chain = rq.popUsed(heap.runtime_allocator) catch @panic("failed to pop used descriptors") orelse continue;
-                defer heap.runtime_allocator.free(chain.desc_list.?);
-                const buf = rq.retrieveFromUsedDesc(chain, heap.runtime_allocator) catch @panic("virtio net receive failed");
-                defer heap.runtime_allocator.free(buf);
-                const packet_buf = buf[@sizeOf(Header)..chain.total_len];
+                // Each packet is contained in a single descriptor,
+                // because VIRTIO_NET_F_MRG_RXBUF is not negotiated.
+                const used_elem = rq.popUsedOne() orelse continue;
+                const buf = @as([*]u8, @ptrFromInt(rq.desc[used_elem.id].addr))[0..used_elem.len];
+                const packet_buf = buf[@sizeOf(Header)..];
+
                 rx_recv(@as(*u8, @ptrCast(packet_buf.ptr)), @as(u16, @intCast(packet_buf.len)));
 
-                rq.enqueue(chain.desc_list.?);
+                rq.enqueue(([1]common.VirtqDescBuffer{common.VirtqDescBuffer{
+                    .addr = rq.desc[used_elem.id].addr,
+                    .len = PACKET_MAX_LEN,
+                    .type = common.VirtqDescBufferType.WritableFromDevice,
+                }})[0..1]);
             }
         }
 

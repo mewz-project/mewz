@@ -110,7 +110,7 @@ pub const Virtqueue = struct {
         };
     }
 
-    pub fn enqueue(self: *Self, chain: []VirtqDescBuffer) void {
+    pub fn enqueue(self: *Self, chain: []const VirtqDescBuffer) void {
         if (self.num_free_descs < chain.len) {
             while (true) {
                 const used_chain = self.popUsed(null) catch @panic("failed to pop used desc");
@@ -214,6 +214,29 @@ pub const Virtqueue = struct {
             .desc_list = desc_list,
             .total_len = used_elem.len,
         };
+    }
+
+    pub fn popUsedOne(self: *Self) ?UsedRing.UsedRingEntry {
+        if (self.used.idx().* == self.last_used_idx) {
+            return null;
+        }
+
+        const used_idx = (self.last_used_idx % self.num_descs);
+        const used_elem = self.used.ring()[used_idx];
+        self.last_used_idx +%= 1;
+
+        const desc_idx = used_elem.id;
+        const desc: *volatile VirtqDesc = &self.desc[desc_idx];
+
+        if (desc.hasNext()) {
+            @panic("popUsedOne: descriptor is chained, which is not expected");
+        }
+
+        desc.*.next = self.free_desc_head_idx;
+        self.num_free_descs += 1;
+        self.free_desc_head_idx = @as(u16, @intCast(used_elem.id));
+
+        return used_elem;
     }
 
     // retrieveFromUsedDesc retrieves the data from the used descriptor chain
