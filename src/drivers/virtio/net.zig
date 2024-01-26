@@ -143,6 +143,9 @@ const VirtioNet = struct {
     pub fn receive(self: *Self) void {
         const isr = self.virtio.transport.getIsr();
         if (isr.isQueue()) {
+            lwip.acquire().sys_check_timeouts();
+            lwip.release();
+
             const rq = self.receiveq();
             while (rq.last_used_idx != rq.used.idx().*) {
                 // Each packet is contained in a single descriptor,
@@ -159,12 +162,9 @@ const VirtioNet = struct {
                     .type = common.VirtqDescBufferType.WritableFromDevice,
                 }})[0..1]);
             }
+
+            self.virtio.transport.notifyQueue(self.receiveq());
         }
-
-        lwip.acquire().sys_check_timeouts();
-        lwip.release();
-
-        self.virtio.transport.notifyQueue(self.receiveq());
     }
 };
 
