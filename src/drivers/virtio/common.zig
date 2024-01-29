@@ -11,6 +11,8 @@ const VIRTIO_PCI_CAP_NOTIFY_CFG: u8 = 2;
 const VIRTIO_PCI_CAP_ISR_CFG: u8 = 3;
 const VIRTIO_PCI_CAP_DEVICE_CFG: u8 = 4;
 
+pub const VIRTQ_AVAIL_F_NO_INTERRUPT: u16 = 1;
+
 const Error = std.mem.Allocator.Error;
 
 pub const IsrStatus = enum(u32) {
@@ -82,6 +84,7 @@ pub const Virtqueue = struct {
     index: u16,
     num_descs: u16,
     num_free_descs: u16,
+    not_notified_num_descs: u16 = 0,
     last_used_idx: u16,
     free_desc_head_idx: u16,
 
@@ -149,8 +152,10 @@ pub const Virtqueue = struct {
                 desc.flags |= @intFromEnum(VirtqDescFlag.NEXT);
                 desc_idx = desc.next;
             }
-            self.num_free_descs -= 1;
         }
+
+        self.num_free_descs -= @as(u16, @intCast(chain.len));
+        self.not_notified_num_descs += @as(u16, @intCast(chain.len));
 
         const avail_idx = (self.avail.idx().* % self.num_descs);
         self.avail.ring()[avail_idx] = head_idx;
@@ -530,6 +535,8 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
             const offset = self.notify_off_multiplier * self.common_config.queue_notify_off;
             const addr = self.notify + @as(usize, @intCast(offset));
             @as(*volatile u16, @ptrFromInt(addr)).* = virtq.index;
+
+            virtq.not_notified_num_descs = 0;
         }
 
         pub fn getIsr(self: *Self) IsrStatus {

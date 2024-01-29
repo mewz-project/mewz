@@ -92,6 +92,8 @@ const VirtioNet = struct {
             self.virtio.transport.notifyQueue(self.receiveq());
         }
 
+        self.transmitq().avail.flags().* = common.VIRTQ_AVAIL_F_NO_INTERRUPT;
+
         return self;
     }
 
@@ -163,7 +165,9 @@ const VirtioNet = struct {
                 }})[0..1]);
             }
 
-            self.virtio.transport.notifyQueue(self.receiveq());
+            if (rq.not_notified_num_descs > rq.num_descs / 2) {
+                self.virtio.transport.notifyQueue(self.receiveq());
+            }
         }
     }
 };
