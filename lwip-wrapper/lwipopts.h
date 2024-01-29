@@ -78,4 +78,6 @@
 /* --- Misc --- */
 #define LWIP_STATS                      0 /* Don't Use statistics. */
 
+#define LWIP_CHECKSUM_ON_COPY           1 /* Checksum on copy. */
+
 #endif /* __LWIPOPTS_H__ */
