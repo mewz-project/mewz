@@ -530,6 +530,10 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
         }
 
         pub fn notifyQueue(self: *Self, virtq: *Virtqueue) void {
+            if (virtq.not_notified_num_descs == 0) {
+                return;
+            }
+
             self.common_config.queue_select = virtq.index;
             @fence(std.builtin.AtomicOrder.SeqCst);
             const offset = self.notify_off_multiplier * self.common_config.queue_notify_off;

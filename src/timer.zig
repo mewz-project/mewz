@@ -2,6 +2,7 @@ const std = @import("std");
 const heap = @import("heap.zig");
 const interrupt = @import("interrupt.zig");
 const sync = @import("sync.zig");
+const net = @import("drivers/virtio/net.zig");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -58,6 +59,8 @@ pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
         }
     }
     timers.release();
+
+    net.flush();
 }
 
 pub fn init() void {

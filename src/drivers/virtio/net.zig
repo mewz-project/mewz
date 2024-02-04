@@ -129,17 +129,17 @@ const VirtioNet = struct {
         const buf = @as([*]u8, @ptrFromInt(base + @sizeOf(Header)));
         @memcpy(buf, data);
 
-        var desc_buf = [_]common.VirtqDescBuffer{ common.VirtqDescBuffer{
+        var desc_buf = [_]common.VirtqDescBuffer{common.VirtqDescBuffer{
             .addr = base,
-            .len = @sizeOf(Header),
+            .len = @sizeOf(Header) + @as(u32, @intCast(data.len)),
             .type = common.VirtqDescBufferType.ReadonlyFromDevice,
-        }, common.VirtqDescBuffer{
-            .addr = base + @sizeOf(Header),
-            .len = @as(u32, @intCast(data.len)),
-            .type = common.VirtqDescBufferType.ReadonlyFromDevice,
-        } };
-        self.transmitq().enqueue(desc_buf[0..2]);
-        self.virtio.transport.notifyQueue(self.transmitq());
+        }};
+
+        self.transmitq().enqueue(desc_buf[0..1]);
+
+        if (self.transmitq().not_notified_num_descs > self.transmitq().num_descs / 2) {
+            self.virtio.transport.notifyQueue(self.transmitq());
+        }
     }
 
     pub fn receive(self: *Self) void {
@@ -206,4 +206,8 @@ fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
     log.debug.print("interrupt\n");
     virtio_net.receive();
+}
+
+pub fn flush() void {
+    virtio_net.virtio.transport.notifyQueue(virtio_net.transmitq());
 }
