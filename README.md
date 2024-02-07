@@ -8,7 +8,7 @@ Mewz is a unikernel designed specifically for running Wasm applications and comp
 
 There are now various Wasm runtimes, but they operate on general-purpose operating systems such as Linux or Windows.
 
-Mewz is **a specialized kernel designed for running Wasm**. Mewz runs a single Wasm application within the kernel by linking it together during the build process with the Wasm application. (A kernel configured in this manner is commonly referred to as a **unikernel**.) In this way, Mewz provides **the minimal required features and environment for executing Wasm**.
+Mewz is **a specialized kernel designed for running Wasm**. Mewz runs a single Wasm application within the kernel by linking it together during the build process with the Wasm application. (A kernel composed in this manner is commonly referred to as a **unikernel**.) In this way, Mewz provides **the minimal required features and environment for executing Wasm**.
 
 ![](img/mewz-architecture.png)
 
