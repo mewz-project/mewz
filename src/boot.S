@@ -135,13 +135,13 @@ protected_mode:
 construct_page_table:
     // PML4: 0x00000000_00000000 (temporarily used in protected mode)
     lea edi, [__kernel_pml4]
-    lea eax, [__kernel_pdpt + 0x103] // Present, writable, global.
+    lea eax, [__kernel_pdpt + 0x003] // Present, writable.
     mov dword ptr [edi], eax
     mov dword ptr [edi + 4], 0
 
     // PDPT
     lea edi, [__kernel_pdpt]
-    lea eax, [__kernel_pd + 0x103] // Present, writable, global.
+    lea eax, [__kernel_pd + 0x003] // Present, writable.
     mov ecx, 4 // (# of PDPT entries)
 
 write_pdpt_entry:
