@@ -5,6 +5,7 @@ const log = @import("log.zig");
 const stream = @import("stream.zig");
 const sync = @import("sync.zig");
 const lwip = @import("lwip.zig");
+const net = @import("drivers/virtio/net.zig");
 const util = @import("util.zig");
 const virito_net = @import("drivers/virtio/net.zig");
 const wasi = @import("wasi.zig");
@@ -148,6 +149,12 @@ pub const Socket = struct {
         const pcb = @as(*anyopaque, @ptrFromInt(self.pcb_addr));
 
         const len = @min(buffer.len, locked_lwip.lwip_tcp_sndbuf(pcb));
+
+        if (len == 0) {
+            net.flush();
+            return Error.Again;
+        }
+
         const err = locked_lwip.lwip_send(pcb, buffer.ptr, len);
         if (err < 0) {
             log.warn.printf("lwip_send failed: {d}\n", .{err});

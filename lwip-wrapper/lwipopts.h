@@ -51,6 +51,11 @@
 #define MEMP_NUM_TCP_PCB           1024
 #define MEMP_NUM_TCP_PCB_LISTEN    1024
 
+/* --- TCP --- */
+#define TCP_WND                    32766
+#define TCP_MSS                    1460
+#define TCP_SND_BUF                (TCP_WND + (2 * TCP_MSS))
+
 /* --- DHCP --- */
 #define DHCP_DOES_ARP_CHECK             0 /* Don't Check Binded Addr */
 

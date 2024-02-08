@@ -462,9 +462,17 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
         const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
         const len = @as(usize, @intCast(iovecs[0].buf_len));
         const buf = @as([*]u8, @ptrFromInt(addr))[0..len];
-        const sent_len = socket.send(buf) catch return WasiError.INVAL;
+
+        const sent_len = socket.send(buf) catch |err| {
+            switch (err) {
+                tcpip.Socket.Error.Again => return WasiError.AGAIN,
+                else => return WasiError.INVAL,
+            }
+        };
+
         const send_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(send_len_addr)) + linear_memory_offset));
         send_len_ptr.* = @as(i32, @intCast(sent_len));
+        log.debug.printf("WASI sock_send: buf_len={d}, sent_len={d}\n", .{ buf.len, sent_len });
         return WasiError.SUCCESS;
     }
 
