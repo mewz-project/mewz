@@ -108,7 +108,11 @@ const PageMapEntry = packed struct {
             if (entry.*.present == 0) {
                 entry.*.present = 1;
                 entry.*.writable = 1;
-                entry.*.global = 1;
+
+                // DO NOT SET GLOBAL FLAG EXCEPT LEVEL 1 ENTRY
+                if (level == 1) {
+                    entry.*.global = 1;
+                }
 
                 const new_table = allocTable();
                 if (@intFromPtr(new_table) % PAGE_SIZE != 0) {
