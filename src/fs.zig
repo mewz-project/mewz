@@ -5,7 +5,7 @@ const std = @import("std");
 
 const Stream = stream.Stream;
 
-const FILES_MAX: usize = 32;
+const FILES_MAX: usize = 200;
 
 extern const _binary_build_disk_tar_start: [*]u8;
 
