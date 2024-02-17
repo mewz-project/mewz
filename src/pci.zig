@@ -10,6 +10,8 @@ const CONDIG_DATA = 0x0cfc;
 
 pub var devices = [10]?Device{ null, null, null, null, null, null, null, null, null, null };
 
+var null_device_index: usize = 0;
+
 pub const Error = error{
     InvalidDevice,
 };
@@ -145,6 +147,14 @@ pub const Device = struct {
         return dev;
     }
 
+    fn headerType(self: *const Self) u8 {
+        return self.read8(0xe);
+    }
+
+    fn isSingleFunction(self: *const Self) bool {
+        return (self.headerType() & 0x80) == 0;
+    }
+
     pub fn enable_bus_master(self: *Self) void {
         const command = self.read32(4);
         self.write32(4, command | (1 << 2));
@@ -176,32 +186,25 @@ pub const Device = struct {
 pub fn init() void {
     // TODO: check for host bridge
     // TODO: check for PCI-to-PCI bridge
-    // TODO: check for multi-function device
-    var null_device_index: usize = 0;
-    var bus: u8 = 0;
-    var slot: u8 = 0;
-    var func: u8 = 0;
-    while (true) {
-        const device = scanFunction(bus, slot, func);
+
+    var root = Device{
+        .bus = 0,
+        .slot = 0,
+        .func = 0,
+        .config = undefined,
+        .capabilities = undefined,
+    };
+
+    if (root.isSingleFunction()) {
+        scanBus(0);
+        return;
+    }
+
+    for (0..8) |func| {
+        const device = scanFunction(0, 0, @as(u8, @intCast(func)));
         if (device) |d| {
-            if (null_device_index >= devices.len) {
-                @panic("pci: too many devices");
-            }
             devices[null_device_index] = d;
             null_device_index += 1;
-        }
-
-        func += 1;
-        if (func > 7) {
-            func = 0;
-            slot += 1;
-            if (slot > 31) {
-                if (bus == 255) {
-                    break;
-                }
-                slot = 0;
-                bus += 1;
-            }
         }
     }
 }
@@ -214,6 +217,16 @@ fn scanFunction(bus: u8, slot: u8, func: u8) ?Device {
     log.info.printf("pci: device id: {x}\n", .{device.config.device_id});
 
     return device;
+}
+
+fn scanBus(bus: u8) void {
+    for (0..32) |slot| {
+        const device = scanFunction(bus, @as(u8, @intCast(slot)), 0);
+        if (device) |d| {
+            devices[null_device_index] = d;
+            null_device_index += 1;
+        }
+    }
 }
 
 // offset is in bytes
