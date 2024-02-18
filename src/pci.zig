@@ -151,8 +151,20 @@ pub const Device = struct {
         return self.read8(0xe);
     }
 
+    fn vendorId(self: *const Self) u16 {
+        return self.read16(0);
+    }
+
     fn isSingleFunction(self: *const Self) bool {
         return (self.headerType() & 0x80) == 0;
+    }
+
+    fn isBridge(self: *const Self) bool {
+        return (self.config.class == 0x06) and (self.config.subclass == 0x04);
+    }
+
+    fn isInvalid(self: *const Self) bool {
+        return self.vendorId() == 0xffff;
     }
 
     pub fn enable_bus_master(self: *Self) void {
@@ -164,6 +176,12 @@ pub const Device = struct {
     fn read8(self: *const Self, offset: u8) u8 {
         const value = readConfig(self.bus, self.slot, self.func, offset & 0xfc);
         return @as(u8, @intCast(((value >> @as(u5, @intCast(((offset & 0x03) * 8)))) & 0xff)));
+    }
+
+    // offset is in bytes
+    fn read16(self: *const Self, offset: u8) u16 {
+        const value = readConfig(self.bus, self.slot, self.func, offset & 0xfc);
+        return @as(u16, @intCast(((value >> @as(u5, @intCast(((offset & 0x02) * 8)))) & 0xffff)));
     }
 
     // offset is in bytes
@@ -200,11 +218,16 @@ pub fn init() void {
         return;
     }
 
-    for (0..8) |func| {
-        const device = scanFunction(0, 0, @as(u8, @intCast(func)));
-        if (device) |d| {
-            devices[null_device_index] = d;
-            null_device_index += 1;
+    for (1..8) |func| {
+        const dev = Device{
+            .bus = 0,
+            .slot = 0,
+            .func = @as(u8, @intCast(func)),
+            .config = undefined,
+            .capabilities = undefined,
+        };
+        if (dev.isInvalid()) {
+            scanBus(@as(u8, @intCast(func)));
         }
     }
 }
@@ -216,16 +239,49 @@ fn scanFunction(bus: u8, slot: u8, func: u8) ?Device {
     log.info.printf("pci: vendor id: {x}\n", .{device.config.vendor_id});
     log.info.printf("pci: device id: {x}\n", .{device.config.device_id});
 
+    if (device.isBridge()) {
+        log.info.printf("pci: found bridge at bus {}, slot {}, func {}\n", .{ bus, slot, func });
+        const secondary_bus = @as(u8, @intCast((device.config.bar2 >> 8) & 0xff));
+        log.info.printf("pci: secondary bus: {}\n", .{secondary_bus});
+        scanBus(secondary_bus);
+    }
+
     return device;
+}
+
+fn scanDevice(bus: u8, slot: u8) void {
+    const device = scanFunction(bus, slot, 0) orelse @panic("pci: invalid device");
+
+    devices[null_device_index] = device;
+    null_device_index += 1;
+
+    if (device.isSingleFunction()) {
+        return;
+    }
+
+    for (1..8) |func| {
+        const dev = scanFunction(bus, slot, @as(u8, @intCast(func)));
+        if (dev) |d| {
+            devices[null_device_index] = d;
+            null_device_index += 1;
+        }
+    }
 }
 
 fn scanBus(bus: u8) void {
     for (0..32) |slot| {
-        const device = scanFunction(bus, @as(u8, @intCast(slot)), 0);
-        if (device) |d| {
-            devices[null_device_index] = d;
-            null_device_index += 1;
+        const dev = Device{
+            .bus = bus,
+            .slot = @as(u8, @intCast(slot)),
+            .func = 0,
+            .config = undefined,
+            .capabilities = undefined,
+        };
+        if (dev.isInvalid()) {
+            continue;
         }
+
+        scanDevice(bus, @as(u8, @intCast(slot)));
     }
 }
 
