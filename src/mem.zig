@@ -192,8 +192,8 @@ pub fn init(info: *multiboot.BootInfo) void {
                 log.info.printf("available memory: {x} - {x}\n", .{ base, end });
 
                 // align the range to BLOCK_SIZE
-                const aligned_base = util.roundUp(usize, base, PAGE_SIZE);
-                const aligned_end = util.roundDown(usize, end, PAGE_SIZE);
+                const aligned_base = util.roundUp(usize, base, BLOCK_SIZE);
+                const aligned_end = util.roundDown(usize, end, BLOCK_SIZE);
 
                 const length = aligned_end - aligned_base;
                 if (length >= MIN_BOOTTIME_ALLOCATOR_SIZE) {
@@ -213,8 +213,8 @@ pub fn init(info: *multiboot.BootInfo) void {
 pub fn init2() void {
     const base = @intFromPtr(boottime_fba.?.buffer.ptr) + boottime_fba.?.end_index;
     const length = boottime_fba.?.buffer.len - boottime_fba.?.end_index;
-    const aligned_base = util.roundUp(usize, base, PAGE_SIZE);
-    const aligned_length = util.roundDown(usize, length, PAGE_SIZE);
+    const aligned_base = util.roundUp(usize, base, BLOCK_SIZE);
+    const aligned_length = util.roundDown(usize, length, BLOCK_SIZE);
     initRange(aligned_base, aligned_length);
 
     boottime_allocator = null;
@@ -280,10 +280,10 @@ fn initRange(base: usize, length: usize) void {
         return;
     }
 
-    if (base % PAGE_SIZE != 0) {
+    if (base % BLOCK_SIZE != 0) {
         @panic("freeRange: base is not aligned");
     }
-    if (length % PAGE_SIZE != 0) {
+    if (length % BLOCK_SIZE != 0) {
         @panic("freeRange: length is not aligned");
     }
 
