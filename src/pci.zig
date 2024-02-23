@@ -10,6 +10,8 @@ const CONDIG_DATA = 0x0cfc;
 
 pub var devices = [10]?Device{ null, null, null, null, null, null, null, null, null, null };
 
+var null_device_index: usize = 0;
+
 pub const Error = error{
     InvalidDevice,
 };
@@ -145,6 +147,26 @@ pub const Device = struct {
         return dev;
     }
 
+    fn headerType(self: *const Self) u8 {
+        return self.read8(0xe);
+    }
+
+    fn vendorId(self: *const Self) u16 {
+        return self.read16(0);
+    }
+
+    fn isSingleFunction(self: *const Self) bool {
+        return (self.headerType() & 0x80) == 0;
+    }
+
+    fn isBridge(self: *const Self) bool {
+        return (self.config.class == 0x06) and (self.config.subclass == 0x04);
+    }
+
+    fn isInvalid(self: *const Self) bool {
+        return self.vendorId() == 0xffff;
+    }
+
     pub fn enable_bus_master(self: *Self) void {
         const command = self.read32(4);
         self.write32(4, command | (1 << 2));
@@ -154,6 +176,12 @@ pub const Device = struct {
     fn read8(self: *const Self, offset: u8) u8 {
         const value = readConfig(self.bus, self.slot, self.func, offset & 0xfc);
         return @as(u8, @intCast(((value >> @as(u5, @intCast(((offset & 0x03) * 8)))) & 0xff)));
+    }
+
+    // offset is in bytes
+    fn read16(self: *const Self, offset: u8) u16 {
+        const value = readConfig(self.bus, self.slot, self.func, offset & 0xfc);
+        return @as(u16, @intCast(((value >> @as(u5, @intCast(((offset & 0x02) * 8)))) & 0xffff)));
     }
 
     // offset is in bytes
@@ -176,32 +204,30 @@ pub const Device = struct {
 pub fn init() void {
     // TODO: check for host bridge
     // TODO: check for PCI-to-PCI bridge
-    // TODO: check for multi-function device
-    var null_device_index: usize = 0;
-    var bus: u8 = 0;
-    var slot: u8 = 0;
-    var func: u8 = 0;
-    while (true) {
-        const device = scanFunction(bus, slot, func);
-        if (device) |d| {
-            if (null_device_index >= devices.len) {
-                @panic("pci: too many devices");
-            }
-            devices[null_device_index] = d;
-            null_device_index += 1;
-        }
 
-        func += 1;
-        if (func > 7) {
-            func = 0;
-            slot += 1;
-            if (slot > 31) {
-                if (bus == 255) {
-                    break;
-                }
-                slot = 0;
-                bus += 1;
-            }
+    var root = Device{
+        .bus = 0,
+        .slot = 0,
+        .func = 0,
+        .config = undefined,
+        .capabilities = undefined,
+    };
+
+    if (root.isSingleFunction()) {
+        scanBus(0);
+        return;
+    }
+
+    for (1..8) |func| {
+        const dev = Device{
+            .bus = 0,
+            .slot = 0,
+            .func = @as(u8, @intCast(func)),
+            .config = undefined,
+            .capabilities = undefined,
+        };
+        if (dev.isInvalid()) {
+            scanBus(@as(u8, @intCast(func)));
         }
     }
 }
@@ -213,7 +239,50 @@ fn scanFunction(bus: u8, slot: u8, func: u8) ?Device {
     log.info.printf("pci: vendor id: {x}\n", .{device.config.vendor_id});
     log.info.printf("pci: device id: {x}\n", .{device.config.device_id});
 
+    if (device.isBridge()) {
+        log.info.printf("pci: found bridge at bus {}, slot {}, func {}\n", .{ bus, slot, func });
+        const secondary_bus = @as(u8, @intCast((device.config.bar2 >> 8) & 0xff));
+        log.info.printf("pci: secondary bus: {}\n", .{secondary_bus});
+        scanBus(secondary_bus);
+    }
+
     return device;
+}
+
+fn scanDevice(bus: u8, slot: u8) void {
+    const device = scanFunction(bus, slot, 0) orelse @panic("pci: invalid device");
+
+    devices[null_device_index] = device;
+    null_device_index += 1;
+
+    if (device.isSingleFunction()) {
+        return;
+    }
+
+    for (1..8) |func| {
+        const dev = scanFunction(bus, slot, @as(u8, @intCast(func)));
+        if (dev) |d| {
+            devices[null_device_index] = d;
+            null_device_index += 1;
+        }
+    }
+}
+
+fn scanBus(bus: u8) void {
+    for (0..32) |slot| {
+        const dev = Device{
+            .bus = bus,
+            .slot = @as(u8, @intCast(slot)),
+            .func = 0,
+            .config = undefined,
+            .capabilities = undefined,
+        };
+        if (dev.isInvalid()) {
+            continue;
+        }
+
+        scanDevice(bus, @as(u8, @intCast(slot)));
+    }
 }
 
 // offset is in bytes
