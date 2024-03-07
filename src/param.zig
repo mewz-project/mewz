@@ -9,6 +9,7 @@ const Params = struct {
 
 pub var params = Params{};
 
+// Part which is not surrounded by '' is ignored.
 // TODO: Add tests
 pub fn parseFromArgs(args: []const u8) void {
     const addr_str = getParamPart(args);
