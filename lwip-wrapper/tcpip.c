@@ -224,7 +224,7 @@ u16_t lwip_get_remote_port(struct tcp_pcb *pcb) {
   return pcb->remote_port;
 }
 
-void init() {
+void init(u32_t ip, u32_t subnet) {
     lwip_init();
 
     // Specify MAC Address
@@ -232,8 +232,8 @@ void init() {
     unsigned char macaddr[] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
 
     ip_addr_t ipaddr, netmask, gateway;
-    IP4_ADDR(&ipaddr, 10, 0, 2, 15);
-    IP4_ADDR(&netmask, 255, 255, 255, 0);
+    ipaddr.addr = ip;
+    netmask.addr = subnet;
     IP4_ADDR(&gateway, 10, 0, 2, 2);
 
     // Specify TCP port

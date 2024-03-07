@@ -321,7 +321,7 @@ fn wasiToLwipAddressType(t: wasi.AddressFamily) u8 {
     }
 }
 
-pub extern fn init() void;
+pub extern fn init(ip: u32, netmask: u32) void;
 
 export fn transmit(addr: [*c]u8, size: u32) callconv(.C) void {
     const data = addr[0..size];

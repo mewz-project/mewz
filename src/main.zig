@@ -8,10 +8,12 @@ const fs = @import("fs.zig");
 const heap = @import("heap.zig");
 const mem = @import("mem.zig");
 const uart = @import("uart.zig");
+const param = @import("param.zig");
 const pci = @import("pci.zig");
 const picirq = @import("picirq.zig");
 const tcpip = @import("tcpip.zig");
 const timer = @import("timer.zig");
+const util = @import("util.zig");
 const multiboot = @import("multiboot.zig");
 const virtio_net = @import("drivers/virtio/net.zig");
 const interrupt = @import("interrupt.zig");
@@ -24,6 +26,9 @@ extern fn wasker_main() void;
 export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C) void {
     _ = boot_magic;
     const bootinfo = @as(*multiboot.BootInfo, @ptrFromInt(boot_params));
+    const cmdline = util.getString(bootinfo.cmdline);
+
+    param.parseFromArgs(cmdline);
 
     uart.init();
     lapic.init();
@@ -36,7 +41,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C)
     pci.init();
     virtio_net.init();
     mem.init2();
-    tcpip.init();
+    tcpip.init(param.params.addr, param.params.subnetmask);
     fs.init();
 
     uart.putc('\n');
