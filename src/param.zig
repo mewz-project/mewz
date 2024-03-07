@@ -9,14 +9,8 @@ const Params = struct {
 
 pub var params = Params{};
 
-// Part which is not surrounded by '' is ignored.
 // TODO: Add tests
 pub fn parseFromArgs(args: []const u8) void {
-    const addr_str = getParamPart(args);
-    parse(addr_str);
-}
-
-fn parse(args: []const u8) void {
     var params_itr = std.mem.split(u8, args, " ");
     while (params_itr.next()) |part| {
         var kv = std.mem.split(u8, part, "=");
@@ -27,28 +21,9 @@ fn parse(args: []const u8) void {
         if (std.mem.eql(u8, k, "ip")) {
             parseIp(v);
         } else {
-            @panic("invalid param format");
+            continue;
         }
     }
-}
-
-// retrive substring which is surrounded by ''
-fn getParamPart(args: []const u8) []const u8 {
-    var start: usize = 0;
-    var end: usize = 0;
-    var in_quote = false;
-    for (0..args.len) |i| {
-        if (args[i] == '\'') {
-            if (in_quote) {
-                end = i;
-                break;
-            } else {
-                start = i + 1;
-                in_quote = true;
-            }
-        }
-    }
-    return args[start..end];
 }
 
 fn parseIp(ip_str: []const u8) void {
