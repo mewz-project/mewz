@@ -28,7 +28,7 @@ QEMU_ARGS=(
     "-device"
     "isa-debug-exit,iobase=0x501,iosize=2"
     "-append"
-    "ip=10.0.2.15/24"
+    "ip=10.0.2.15/24 gateway=10.0.2.2"
 )
 
 DEBUG=false

@@ -41,7 +41,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C)
     pci.init();
     virtio_net.init();
     mem.init2();
-    tcpip.init(param.params.addr, param.params.subnetmask);
+    tcpip.init(param.params.addr, param.params.subnetmask, param.params.gateway);
     fs.init();
 
     uart.putc('\n');

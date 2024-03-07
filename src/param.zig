@@ -5,6 +5,7 @@ const Ip4Address = std.os.linux.sockaddr;
 const Params = struct {
     addr: u32 = undefined,
     subnetmask: u32 = undefined,
+    gateway: u32 = undefined,
 };
 
 pub var params = Params{};
@@ -20,6 +21,10 @@ pub fn parseFromArgs(args: []const u8) void {
 
         if (std.mem.eql(u8, k, "ip")) {
             parseIp(v);
+        } else if (std.mem.eql(u8, k, "gateway")) {
+            params.gateway = parseIp4Address(v) orelse {
+                @panic("invalid ip format");
+            };
         } else {
             continue;
         }
