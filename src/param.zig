@@ -3,9 +3,13 @@ const log = @import("log.zig");
 const Ip4Address = std.os.linux.sockaddr;
 
 const Params = struct {
-    addr: u32 = undefined,
-    subnetmask: u32 = undefined,
-    gateway: u32 = undefined,
+    addr: ?u32 = null,
+    subnetmask: ?u32 = null,
+    gateway: ?u32 = null,
+
+    pub fn isNetworkEnabled(self: Params) bool {
+        return self.addr != null and self.subnetmask != null and self.gateway != null;
+    }
 };
 
 pub var params = Params{};
@@ -43,6 +47,7 @@ fn parseIp(ip_str: []const u8) void {
         @panic("invalid ip format");
     };
 
+    var subnetmask: u32 = 0;
     const subnet_num = std.fmt.parseInt(u32, subnet, 10) catch {
         @panic("invalid subnet format");
     };
@@ -50,8 +55,9 @@ fn parseIp(ip_str: []const u8) void {
         @panic("invalid subnet format");
     }
     for (0..subnet_num) |i| {
-        params.subnetmask |= @as(u32, 1) << @as(u5, @intCast(31 - i));
+        subnetmask |= @as(u32, 1) << @as(u5, @intCast(31 - i));
     }
+    params.subnetmask = subnetmask;
 }
 
 // This function is a copy of std.net.Ip4Address.parse
