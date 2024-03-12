@@ -15,7 +15,6 @@ QEMU_ARGS=(
     "virtio-net,netdev=net0,disable-legacy=on,disable-modern=off"
     "-netdev"
     "user,id=net0,hostfwd=tcp:0.0.0.0:1234-:1234"
-    "-no-shutdown"
     "-no-reboot"
     "-serial"
     "mon:stdio"
@@ -28,6 +27,8 @@ QEMU_ARGS=(
     "filter-dump,id=fiter0,netdev=net0,file=virtio-net.pcap"
     "-device"
     "isa-debug-exit,iobase=0x501,iosize=2"
+    "-append"
+    "ip=10.0.2.15/24 gateway=10.0.2.2"
 )
 
 DEBUG=false

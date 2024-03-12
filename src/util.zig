@@ -81,6 +81,12 @@ pub fn roundDown(comptime T: type, v: T, to: T) T {
     return v / to * to;
 }
 
+pub fn getString(addr: u32) []const u8 {
+    var len: u32 = 0;
+    while (@as(*u8, @ptrFromInt(addr + len)).* != 0) : (len += 1) {}
+    return @as([*]u8, @ptrFromInt(addr))[0..len];
+}
+
 test "RingBuffer" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
