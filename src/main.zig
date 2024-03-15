@@ -44,7 +44,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u64) align(16) callconv(.C)
     }
     mem.init2();
     if (param.params.isNetworkEnabled()) {
-        tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?);
+        tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, &virtio_net.virtio_net.mac_addr);
     }
     fs.init();
 
