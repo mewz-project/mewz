@@ -65,6 +65,12 @@ To use file systems, specify the directory by `-Ddir=<path to dir>`. See [exampl
 > [!NOTE]
 > QEMU's port 1234 is mapped to localhost:1234.
 
+## Run integration tests
+
+```sh
+zig bulid -Dtest=true run
+```
+
 ### Current Status
 
 
