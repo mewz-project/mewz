@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  run-integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mewz
+        uses: actions/checkout@v3
+        with:
+          repository: mewz-project/mewz
+          submodules: true
+
+      - name: Install Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.12.0-dev.926+3be8490d8
+          cache: true
+
+      - name: Install packages for running tests
+        uses: awalsh128/cache-apt-pkgs-action@v1.3.0
+        with:
+          packages: qemu-system mtools
+
+      - name: Cache mewz
+        uses: actions/cache@v2
+        with:
+          path:
+            zig-cache
+          key: ${{ runner.os }}-mewz
+
+      - name: Cache Newlib
+        uses: actions/cache@v2
+        with:
+          path:
+            build/newlib
+          key: ${{ runner.os }}-mewz-newlib
+
+      - name: Cache lwIP
+        uses: actions/cache@v2
+        with:
+          path:
+            build/lwip
+          key: ${{ runner.os }}-mewz-lwip
+
+      - name: Build Mewz
+        run: zig build -Dtest=true -Doptimize=ReleaseFast
+
+      - name: Run tests
+        run: |
+          zig build -Dtest=true -Doptimize=ReleaseFast run

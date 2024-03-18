@@ -4,37 +4,80 @@ const Target = @import("std").Target;
 const CrossTarget = @import("std").zig.CrossTarget;
 const Feature = @import("std").Target.Cpu.Feature;
 
+const TEST_DIR_PATH = "build/test";
+
+const BuildParams = struct {
+    obj_path: ?[]const u8 = undefined,
+    dir_path: ?[]const u8 = undefined,
+    is_test: bool = undefined,
+    log_level: []const u8 = undefined,
+
+    const Self = @This();
+
+    fn new(b: *Build) Self {
+        var params = BuildParams{};
+
+        const test_option = b.option(bool, "test", "run tests");
+        if (test_option) |t| {
+            params.is_test = t;
+            if (t) {
+                createTestDir() catch unreachable;
+                params.dir_path = TEST_DIR_PATH;
+            }
+        } else {
+            params.is_test = false;
+        }
+
+        const obj_path_option = b.option([]const u8, "app-obj", "object file of application");
+        if (obj_path_option) |p| {
+            params.obj_path = p;
+        } else {
+            params.obj_path = null;
+        }
+
+        const log_level_option = b.option([]const u8, "log-level", "log level");
+        if (log_level_option) |l| {
+            params.log_level = l;
+        } else {
+            params.log_level = "fatal";
+        }
+
+        const dir_path_option = b.option([]const u8, "dir", "path to directory");
+        if (dir_path_option) |p| {
+            std.debug.print("building fs: {s}\n", .{p});
+            params.dir_path = p;
+        } else {
+            params.dir_path = null;
+        }
+
+        return params;
+    }
+
+    fn setOptions(self: *const Self, b: *Build) *Build.Step.Options {
+        const options = b.addOptions();
+
+        options.addOption(bool, "is_test", self.is_test);
+        options.addOption([]const u8, "log_level", self.log_level);
+
+        if (self.obj_path) |_| {
+            options.addOption(bool, "has_wasm", true);
+        } else {
+            options.addOption(bool, "has_wasm", false);
+        }
+
+        if (self.dir_path) |_| {
+            options.addOption(bool, "has_fs", true);
+        } else {
+            options.addOption(bool, "has_fs", false);
+        }
+
+        return options;
+    }
+};
+
 pub fn build(b: *Build) !void {
-    const kernel_options = b.addOptions();
-
-    const obj_path_option = b.option([]const u8, "app-obj", "object file of application");
-    if (obj_path_option) |_| {
-        kernel_options.addOption(bool, "has_wasm", true);
-    } else {
-        kernel_options.addOption(bool, "has_wasm", false);
-    }
-
-    const test_option = b.option(bool, "test", "run tests");
-    if (test_option) |t| {
-        kernel_options.addOption(bool, "is_test", t);
-    } else {
-        kernel_options.addOption(bool, "is_test", false);
-    }
-
-    const log_level_option = b.option([]const u8, "log-level", "log level");
-    if (log_level_option) |l| {
-        kernel_options.addOption([]const u8, "log_level", l);
-    } else {
-        kernel_options.addOption([]const u8, "log_level", "fatal");
-    }
-
-    const fs_path_option = b.option([]const u8, "dir", "path to filesystem");
-    if (fs_path_option) |p| {
-        std.debug.print("building fs: {s}\n", .{p});
-        kernel_options.addOption(bool, "has_fs", true);
-    } else {
-        kernel_options.addOption(bool, "has_fs", false);
-    }
+    const params = BuildParams.new(b);
+    const options = params.setOptions(b);
 
     const features = Target.x86.Feature;
 
@@ -72,19 +115,19 @@ pub fn build(b: *Build) !void {
     kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipallapps.a" });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/newlib_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
     kernel.addCSourceFile(Build.Step.Compile.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/lwip_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
-    if (obj_path_option) |p| {
+    if (params.obj_path) |p| {
         kernel.addObjectFile(Build.LazyPath{ .path = p });
     }
-    if (fs_path_option) |_| {
+    if (params.dir_path) |_| {
         kernel.addObjectFile(Build.LazyPath{ .path = "build/disk.o" });
     }
-    kernel.addOptions("options", kernel_options);
+    kernel.addOptions("options", options);
     b.installArtifact(kernel);
 
     const kernel_step = b.step("kernel", "Build the kernel");
     kernel.step.dependOn(&newlib_build_cmd.step);
     kernel.step.dependOn(&lwip_build_cmd.step);
-    if (fs_path_option) |p| {
+    if (params.dir_path) |p| {
         const fs_build_cmd = b.addSystemCommand(&[_][]const u8{ "./scripts/build-fs.sh", p });
         kernel.step.dependOn(&fs_build_cmd.step);
     }
@@ -93,7 +136,10 @@ pub fn build(b: *Build) !void {
     const rewrite_kernel_cmd = b.addSystemCommand(&[_][]const u8{"./scripts/rewrite-kernel.sh"});
     rewrite_kernel_cmd.step.dependOn(b.getInstallStep());
 
-    const run_cmd_str = [_][]const u8{"./scripts/run-qemu.sh"};
+    const run_cmd_str = if (params.is_test)
+        [_][]const u8{"./scripts/integration-test.sh"}
+    else
+        [_][]const u8{"./scripts/run-qemu.sh"};
 
     const run_cmd = b.addSystemCommand(&run_cmd_str);
     run_cmd.step.dependOn(&rewrite_kernel_cmd.step);
@@ -110,4 +156,12 @@ pub fn build(b: *Build) !void {
 
     const debug_step = b.step("debug", "Debug the kernel");
     debug_step.dependOn(&debug_cmd.step);
+}
+
+fn createTestDir() !void {
+    const cwd = std.fs.cwd();
+    const test_dir = try cwd.makeOpenPath(TEST_DIR_PATH, std.fs.Dir.OpenDirOptions{});
+    const file = try test_dir.createFile("test.txt", std.fs.File.CreateFlags{});
+    defer file.close();
+    _ = try file.write("fd_read test\n");
 }
