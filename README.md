@@ -1,3 +1,5 @@
+[![CI](https://github.com/mewz-project/mewz/actions/workflows/ci.yaml/badge.svg)](https://github.com/mewz-project/mewz/actions/workflows/ci.yaml)
+
 # Mewz
 
 ![](img/mewz-logo.png)
