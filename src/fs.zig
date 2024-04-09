@@ -94,6 +94,7 @@ fn oct2int(oct: []const u8, len: usize) u32 {
 pub fn init() void {
     // check if fs is enabled
     if (!options.has_fs) {
+        log.debug.print("file system is not attached\n");
         return;
     }
 
