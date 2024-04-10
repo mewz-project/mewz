@@ -25,13 +25,6 @@ mkdir -p build
 tar -cf build/disk.tar --format=ustar -C $dir_path .
 echo "tar archive created"
 
-# check if llvm-objcopy is installed
-if ! command -v llvm-objcopy &> /dev/null
-then
-    echo "llvm-objcopy could not be found"
-    exit 1
-fi
-
 # convert the archive to binary
-llvm-objcopy -Ibinary -Oelf64-x86-64 build/disk.tar build/disk.o
+objcopy -Ibinary -Oelf64-x86-64 build/disk.tar build/disk.o
 echo "disk.o created"
