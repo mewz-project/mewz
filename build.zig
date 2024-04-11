@@ -17,17 +17,6 @@ const BuildParams = struct {
     fn new(b: *Build) Self {
         var params = BuildParams{};
 
-        const test_option = b.option(bool, "test", "run tests");
-        if (test_option) |t| {
-            params.is_test = t;
-            if (t) {
-                createTestDir() catch unreachable;
-                params.dir_path = TEST_DIR_PATH;
-            }
-        } else {
-            params.is_test = false;
-        }
-
         const obj_path_option = b.option([]const u8, "app-obj", "object file of application");
         if (obj_path_option) |p| {
             params.obj_path = p;
@@ -48,6 +37,17 @@ const BuildParams = struct {
             params.dir_path = p;
         } else {
             params.dir_path = null;
+        }
+
+        const test_option = b.option(bool, "test", "run tests");
+        if (test_option) |t| {
+            params.is_test = t;
+            if (t) {
+                createTestDir() catch unreachable;
+                params.dir_path = TEST_DIR_PATH;
+            }
+        } else {
+            params.is_test = false;
         }
 
         return params;
