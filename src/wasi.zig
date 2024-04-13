@@ -639,15 +639,13 @@ pub fn integrationTest() void {
     lock.acquire().* = 1;
     lock.release();
 
-    const base = memory_grow(1) * mem.BLOCK_SIZE;
-    // Socket
-    log.info.printf("base: {x}\n", .{base});
+    _ = memory_grow(1) * mem.BLOCK_SIZE;
 
-    if (!testClientSocket(base)) {
+    if (!testClientSocket()) {
         return;
     }
 
-    if (!testServerSocket(base)) {
+    if (!testServerSocket()) {
         return;
     }
 
@@ -732,11 +730,11 @@ fn testReadfile() bool {
     return true;
 }
 
-fn testServerSocket(base: usize) bool {
+fn testServerSocket() bool {
     @setRuntimeSafety(false);
 
     // sock_open
-    const fd1 = @as(*i32, @ptrFromInt(base + 4 + 0xffff800000000000));
+    const fd1 = @as(*i32, @ptrFromInt(4 + linear_memory_offset));
     fd1.* = -2;
     var res = sock_open(@enumFromInt(1), @enumFromInt(2), 4);
     if (@intFromEnum(res) != 0) {
@@ -749,16 +747,16 @@ fn testServerSocket(base: usize) bool {
     }
 
     // sock_bind
-    var ip = @as([*]u8, @ptrFromInt(base + 8 + 0xffff800000000000));
+    var ip = @as([*]u8, @ptrFromInt(8 + linear_memory_offset));
     ip[0] = 0;
     ip[1] = 0;
     ip[2] = 0;
     ip[3] = 0;
     const port = 1234;
-    var ip_iovec_ptr = @as(*IoVec, @ptrFromInt(base + 12 + 0xffff800000000000));
-    ip_iovec_ptr.buf = @as(u32, @intCast(base + 8));
+    var ip_iovec_ptr = @as(*IoVec, @ptrFromInt(12 + linear_memory_offset));
+    ip_iovec_ptr.buf = 8;
     ip_iovec_ptr.buf_len = 4;
-    res = sock_bind(fd1.*, @as(i32, @intCast(base + 12)), port);
+    res = sock_bind(fd1.*, 12, port);
     if (@intFromEnum(res) != 0) {
         log.fatal.printf("sock_bind failed: {d}\n", .{@intFromEnum(res)});
         return false;
@@ -774,35 +772,35 @@ fn testServerSocket(base: usize) bool {
     log.info.print("server socket test: sock_listen succeeded\n");
 
     // sock_accept
-    res = sock_accept(fd1.*, @as(i32, @intCast(base + 20)));
+    res = sock_accept(fd1.*, 20);
     if (@intFromEnum(res) != 0) {
         log.fatal.printf("sock_accept failed: {d}\n", .{@intFromEnum(res)});
         return false;
     }
-    const fd2 = @as(*i32, @ptrFromInt(base + 20 + 0xffff800000000000));
+    const fd2 = @as(*i32, @ptrFromInt(20 + linear_memory_offset));
     log.info.print("server socket test: sock_accept succeeded\n");
 
     // sock_recv
-    var buf_iovec_ptr = @as(*IoVec, @ptrFromInt(base + 24 + 0xffff800000000000));
-    buf_iovec_ptr.buf = @as(u32, @intCast(base + 40));
+    var buf_iovec_ptr = @as(*IoVec, @ptrFromInt(24 + linear_memory_offset));
+    buf_iovec_ptr.buf = 40;
     buf_iovec_ptr.buf_len = 1024;
-    res = sock_recv(fd2.*, @as(i32, @intCast(base + 24)), 1, 0, @as(i32, @intCast(base + 32)), @as(i32, @intCast(base + 36)));
+    res = sock_recv(fd2.*, 24, 1, 0, 32, 36);
     if (@intFromEnum(res) != 0) {
         log.fatal.printf("sock_recv failed: {d}\n", .{@intFromEnum(res)});
         return false;
     }
     log.info.print("server socket test: sock_recv succeeded\n");
 
-    var buf = @as([*]u8, @ptrFromInt(base + 40 + 0xffff800000000000));
-    const len = @as(*i32, @ptrFromInt(base + 32 + 0xffff800000000000));
+    var buf = @as([*]u8, @ptrFromInt(40 + linear_memory_offset));
+    const len = @as(*i32, @ptrFromInt(32 + linear_memory_offset));
     const received_buf = buf[0..@as(usize, @intCast(len.*))];
     log.info.print(received_buf);
 
     // random_get
     // sock_send
-    _ = random_get(@as(i32, @intCast(base + 40)), 5);
+    _ = random_get(40, 5);
     buf_iovec_ptr.buf_len = 5;
-    res = sock_send(fd2.*, @as(i32, @intCast(base + 24)), 1, 0, @as(i32, @intCast(base + 32)));
+    res = sock_send(fd2.*, 24, 1, 0, 32);
     if (@intFromEnum(res) != 0) {
         log.fatal.printf("sock_send failed: {d}\n", .{@intFromEnum(res)});
         return false;
@@ -828,11 +826,11 @@ fn testServerSocket(base: usize) bool {
     return true;
 }
 
-fn testClientSocket(base: usize) bool {
+fn testClientSocket() bool {
     @setRuntimeSafety(false);
 
     // sock_open
-    const fd0 = @as(*i32, @ptrFromInt(base + 0 + 0xffff800000000000));
+    const fd0 = @as(*i32, @ptrFromInt(0 + linear_memory_offset));
     fd0.* = -2;
     var res = sock_open(@enumFromInt(1), @enumFromInt(2), 0);
     if (@intFromEnum(res) != 0) {
@@ -842,15 +840,15 @@ fn testClientSocket(base: usize) bool {
     log.info.print("client socket test: sock_open succeeded\n");
 
     // sock_connect
-    var ip_iovec = @as(*IoVec, @ptrFromInt(base + 4 + 0xffff800000000000));
-    ip_iovec.buf = @as(u32, @intCast(base + 8));
+    var ip_iovec = @as(*IoVec, @ptrFromInt(4 + linear_memory_offset));
+    ip_iovec.buf = 8;
     ip_iovec.buf_len = 4;
-    var ip = @as([*]u8, @ptrFromInt(base + 8 + 0xffff800000000000));
+    var ip = @as([*]u8, @ptrFromInt(8 + linear_memory_offset));
     ip[0] = 1;
     ip[1] = 1;
     ip[2] = 1;
     ip[3] = 1;
-    res = sock_connect(fd0.*, @as(i32, @intCast(base + 4)), 80);
+    res = sock_connect(fd0.*, 4, 80);
     if (@intFromEnum(res) != 0) {
         log.info.printf("sock_connect failed: {d}\n", .{@intFromEnum(res)});
         return false;
@@ -858,16 +856,16 @@ fn testClientSocket(base: usize) bool {
     log.info.print("client socket test: sock_connect succeeded\n");
 
     // fd_write
-    var buf_iovec = @as([*]IoVec, @ptrFromInt(base + 12 + 0xffff800000000000))[0..2];
-    var buf = @as([*]u8, @ptrFromInt(base + 28 + 0xffff800000000000));
+    var buf_iovec = @as([*]IoVec, @ptrFromInt(12 + linear_memory_offset))[0..2];
+    var buf = @as([*]u8, @ptrFromInt(28 + linear_memory_offset));
     @memcpy(buf, "GET / HTT");
-    buf_iovec[0].buf = @as(u32, @intCast(base + 28));
+    buf_iovec[0].buf = 28;
     buf_iovec[0].buf_len = 9;
-    buf = @as([*]u8, @ptrFromInt(base + 40 + 0xffff800000000000));
+    buf = @as([*]u8, @ptrFromInt(40 + linear_memory_offset));
     @memcpy(buf, "P/1.1\r\n\r\n");
-    buf_iovec[1].buf = @as(u32, @intCast(base + 40));
+    buf_iovec[1].buf = 40;
     buf_iovec[1].buf_len = 9;
-    res = fd_write(fd0.*, @as(i32, @intCast(base + 12)), 2, @as(i32, @intCast(base + 52)));
+    res = fd_write(fd0.*, 12, 2, 52);
     if (@intFromEnum(res) != 0) {
         log.info.printf("fd_write failed: {d}\n", .{@intFromEnum(res)});
         return false;
@@ -875,7 +873,7 @@ fn testClientSocket(base: usize) bool {
     log.info.print("client socket test: fd_write succeeded\n");
 
     // sock_getlocaladdr
-    _ = sock_getlocaladdr(fd0.*, @as(i32, @intCast(base + 4)), @as(i32, @intCast(base + 40)), @as(i32, @intCast(base + 44)));
+    _ = sock_getlocaladdr(fd0.*, 4, 40, 44);
     if (ip[0] != 10 or ip[1] != 0 or ip[2] != 2 or ip[3] != 15) {
         log.info.printf("sock_getlocaladdr failed: {d}.{d}.{d}.{d}\n", .{ ip[0], ip[1], ip[2], ip[3] });
         return false;
@@ -883,8 +881,8 @@ fn testClientSocket(base: usize) bool {
     log.info.print("client socket test: sock_getlocaladdr succeeded\n");
 
     // sock_getpeeraddr
-    _ = sock_getpeeraddr(fd0.*, @as(i32, @intCast(base + 4)), @as(i32, @as(i32, @intCast(base + 40))), @as(i32, @intCast(base + 44)));
-    const peer_port = @as(*i32, @ptrFromInt(base + 44 + 0xffff800000000000));
+    _ = sock_getpeeraddr(fd0.*, 4, 40, 44);
+    const peer_port = @as(*i32, @ptrFromInt(44 + linear_memory_offset));
     if (peer_port.* != 80) {
         log.info.printf("sock_getpeeraddr failed: {d}\n", .{@intFromEnum(res)});
         return false;
