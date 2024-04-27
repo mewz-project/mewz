@@ -651,7 +651,85 @@ pub fn integrationTest() void {
         return;
     }
 
+    if (!testReadfile()) {
+        return;
+    }
+
     log.fatal.print("Integration test passed\n");
+}
+
+fn testReadfile() bool {
+    @setRuntimeSafety(false);
+
+    // relative address of the file descriptor
+    const fd_addr_in_linear_memory = 0;
+    // absolute address of the file descriptor
+    const fd_linear_memory_addr = fd_addr_in_linear_memory + linear_memory_offset;
+    // path to the target file
+    const file_path = "test.txt";
+    // relative address of the target file path
+    const file_path_addr_in_linear_memory = 4;
+    // absolute address of the target file path
+    const file_path_linear_memory_addr = linear_memory_offset + file_path_addr_in_linear_memory;
+
+    // copy the destination file address into memory
+    // get file descriptor based on file address
+    @memcpy(@as([*]u8, @ptrFromInt(file_path_linear_memory_addr)), file_path);
+    var res = path_open(3, 0, file_path_addr_in_linear_memory, file_path.len, 0, 0, 0, 0, fd_addr_in_linear_memory);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("path_open failed: res={d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const open_fd = @as(*i32, @ptrFromInt(fd_linear_memory_addr));
+
+    // content stored in the target file
+    const target_file_content = "fd_read test";
+    // iovec relative offset address
+    const iovec_addr_in_linear_memory = 200;
+    // iovec absolute address
+    const iovec_linear_memory_addr = 200 + linear_memory_offset;
+    // relative address, starting address of buffer
+    const iovec_buf_addr_in_linear_memory = 32;
+    // absolute address, starting address of buffer
+    const iovec_buf_linear_memory_addr = iovec_buf_addr_in_linear_memory + linear_memory_offset;
+    // size of buffer
+    const iovec_buf_len = target_file_content.len;
+    // the number of buf's contained in iovec
+    const iovec_len = 1;
+    // address storing the size of the file contents, indicating the number of characters in the file
+    const file_content_size_addr_in_linear_memory = 100;
+
+    // based on the file descriptor, read the contents of the file into the buf_iovec_ptr
+    var buf_iovec_ptr = @as(*IoVec, @ptrFromInt(iovec_linear_memory_addr));
+    buf_iovec_ptr.buf = iovec_buf_addr_in_linear_memory;
+    buf_iovec_ptr.buf_len = iovec_buf_len;
+    res = fd_read(open_fd.*, iovec_addr_in_linear_memory, iovec_len, file_content_size_addr_in_linear_memory);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("fd_read failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+    const received_file_content = @as([*]u8, @ptrFromInt(iovec_buf_linear_memory_addr))[0..iovec_buf_len];
+
+    // compare file contents
+    if (!std.mem.eql(u8, received_file_content, target_file_content)) {
+        log.fatal.printf("compare file contents failed, want: {s}, get: {s}\n", .{ target_file_content, received_file_content });
+        return false;
+    }
+
+    // compare file content size
+    const received_file_content_size = @as(*i32, @ptrFromInt(file_content_size_addr_in_linear_memory + linear_memory_offset));
+    if (received_file_content_size.* != target_file_content.len) {
+        log.fatal.printf("compare file content size failed, want: {d}, get: {d}\n", .{ target_file_content.len, received_file_content_size.* });
+        return false;
+    }
+
+    res = fd_close(open_fd.*);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("fd_close failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+
+    return true;
 }
 
 fn testServerSocket(base: usize) bool {
