@@ -176,20 +176,20 @@ pub fn init(info: *multiboot.BootInfo) void {
         // disable alignment checks for mmaps
         @setRuntimeSafety(false);
 
-        // mmap_addr points to the MemoryMap array
-        // mmap_length is the size of the MemoryMap array in bytes
-        const mmaps_ptr = @as([*]multiboot.MemoryMap, @ptrFromInt(info.mmap_addr));
-        const mmaps = mmaps_ptr[0 .. info.mmap_length / @sizeOf(multiboot.MemoryMap)];
+        var off: usize = 0;
+        while (off < info.mmap_length) {
+            const mmap = @as(*multiboot.MemoryMap, @ptrFromInt(off + info.mmap_addr));
+            log.debug.printf("mmap.type: {x}\n", .{@intFromEnum(mmap.type)});
 
-        for (mmaps) |*mmap| {
-            if (mmap.type == multiboot.MemoryType.available) {
-                // exclude the kernel image from available memory, because it's already used
-                const base = @max(image_end_addr, mmap.base);
-                const end = mmap.base + mmap.length;
-                if (end <= base) {
-                    continue;
-                }
-                log.info.printf("available memory: {x} - {x}\n", .{ base, end });
+            // exclude the kernel image from available memory, because it's already used
+            const base = @max(image_end_addr, mmap.base);
+            const end = mmap.base + mmap.length;
+
+            log.debug.printf("mmap.base: {x}\n", .{mmap.base});
+            log.debug.printf("end: {x}\n", .{end});
+
+            if (mmap.type == multiboot.MemoryType.available and base < end) {
+                log.debug.printf("available memory: {x} - {x}\n", .{ base, end });
 
                 // align the range to BLOCK_SIZE
                 const aligned_base = util.roundUp(usize, base, BLOCK_SIZE);
@@ -201,11 +201,15 @@ pub fn init(info: *multiboot.BootInfo) void {
                     const buf = @as([*]u8, @ptrFromInt(aligned_base))[0..length];
                     boottime_fba = FixedBufferAllocator.init(buf);
                     boottime_allocator = boottime_fba.?.allocator();
+
+                    log.debug.printf("boottime allocator: addr=0x{x}, len=0x{x}\n", .{ aligned_base, length });
                 } else {
                     // add the range to the free list
                     initRange(aligned_base, length);
                 }
             }
+
+            off += mmap.size + @sizeOf(u32);
         }
     }
 }

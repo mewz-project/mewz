@@ -16,9 +16,9 @@ pub var params = Params{};
 
 // TODO: Add tests
 pub fn parseFromArgs(args: []const u8) void {
-    var params_itr = std.mem.split(u8, args, " ");
+    var params_itr = std.mem.splitScalar(u8, args, ' ');
     while (params_itr.next()) |part| {
-        var kv = std.mem.split(u8, part, "=");
+        var kv = std.mem.splitScalar(u8, part, '=');
 
         const k = kv.next() orelse continue;
         const v = kv.next() orelse continue;
@@ -36,7 +36,7 @@ pub fn parseFromArgs(args: []const u8) void {
 }
 
 fn parseIp(ip_str: []const u8) void {
-    var parts = std.mem.split(u8, ip_str, "/");
+    var parts = std.mem.splitScalar(u8, ip_str, '/');
     const ip = parts.next() orelse @panic("invalid ip format");
     const subnet = parts.next() orelse @panic("invalid ip format");
     if (parts.next()) |_| {

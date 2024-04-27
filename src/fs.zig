@@ -7,7 +7,7 @@ const Stream = stream.Stream;
 
 const FILES_MAX: usize = 200;
 
-extern const _binary_build_disk_tar_start: [*]u8;
+extern var _binary_build_disk_tar_start: [*]u8;
 
 pub var files: [FILES_MAX]RegularFile = undefined;
 pub var dirs: [FILES_MAX]Directory = undefined;

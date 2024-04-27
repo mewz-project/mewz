@@ -79,49 +79,43 @@ pub fn build(b: *Build) !void {
     const params = BuildParams.new(b);
     const options = params.setOptions(b);
 
-    const features = Target.x86.Feature;
-
-    var disabled_features = Feature.Set.empty;
-    var enabled_features = Feature.Set.empty;
-
-    disabled_features.addFeature(@intFromEnum(features.mmx));
-    disabled_features.addFeature(@intFromEnum(features.sse));
-    disabled_features.addFeature(@intFromEnum(features.sse2));
-    disabled_features.addFeature(@intFromEnum(features.avx));
-    disabled_features.addFeature(@intFromEnum(features.avx2));
-    enabled_features.addFeature(@intFromEnum(features.soft_float));
-
-    const target = Query{ .cpu_arch = Target.Cpu.Arch.x86_64, .os_tag = Target.Os.Tag.freestanding, .cpu_features_sub = disabled_features, .cpu_features_add = enabled_features };
-
     const optimize = b.standardOptimizeOption(.{});
 
     const newlib_build_cmd = b.addSystemCommand(&[_][]const u8{"./scripts/build-newlib.sh"});
     const lwip_build_cmd = b.addSystemCommand(&[_][]const u8{"./scripts/build-lwip.sh"});
 
+    const target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86_64,
+        .os_tag = .freestanding,
+        .ofmt = .elf,
+    });
+
     const kernel = b.addExecutable(.{
         .name = "mewz.elf",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .optimize = optimize,
-        .target = b.resolveTargetQuery(target),
-        .linkage = std.builtin.LinkMode.static,
+        .target = target,
+        .linkage = .static,
+        .code_model = .kernel,
     });
-    kernel.entry = .{ .symbol_name = "boot" };
-    kernel.setLinkerScriptPath(.{ .path = "src/x64.ld" });
-    kernel.addAssemblyFile(Build.LazyPath{ .path = "src/boot.S" });
-    kernel.addAssemblyFile(Build.LazyPath{ .path = "src/interrupt.S" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/newlib/libc.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/libtcpip.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipcore.a" });
-    kernel.addObjectFile(Build.LazyPath{ .path = "build/lwip/liblwipallapps.a" });
-    kernel.addCSourceFile(Build.Module.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/newlib_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
-    kernel.addCSourceFile(Build.Module.CSourceFile{ .file = Build.LazyPath{ .path = "src/c/lwip_support.c" }, .flags = &[_][]const u8{ "-I", "submodules/newlib/newlib/libc/include" } });
+
+    kernel.linker_script = b.path("src/x64.ld");
+    kernel.addAssemblyFile(b.path("src/boot.S"));
+    kernel.addAssemblyFile(b.path("src/interrupt.S"));
+    kernel.addObjectFile(b.path("build/newlib/libc.a"));
+    kernel.addObjectFile(b.path("build/lwip/libtcpip.a"));
+    kernel.addObjectFile(b.path("build/lwip/liblwipcore.a"));
+    kernel.addObjectFile(b.path("build/lwip/liblwipallapps.a"));
+    kernel.addCSourceFile(.{ .file = b.path("src/c/newlib_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.addCSourceFile(.{ .file = b.path("src/c/lwip_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
     if (params.obj_path) |p| {
-        kernel.addObjectFile(Build.LazyPath{ .path = p });
+        kernel.addObjectFile(b.path(p));
     }
     if (params.dir_path) |_| {
-        kernel.addObjectFile(Build.LazyPath{ .path = "build/disk.o" });
+        kernel.addObjectFile(b.path("build/disk.o"));
     }
     kernel.root_module.addOptions("options", options);
+    kernel.entry = .{ .symbol_name = "boot" };
     b.installArtifact(kernel);
 
     const kernel_step = b.step("kernel", "Build the kernel");

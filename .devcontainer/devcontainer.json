@@ -4,4 +4,11 @@
 		"context": "..",
 		"dockerfile": "./Dockerfile"
 	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ziglang.vscode-zig"
+			]
+		}
+	},
 }
