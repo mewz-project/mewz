@@ -29,10 +29,10 @@ const FdTable = struct {
 
     const Self = @This();
 
-    pub fn get(self: *Self, fd: i32) ?*Stream {
+    pub fn get(self: *Self, fd: usize) ?*Stream {
         const streams = self.streams.acquire();
         defer self.streams.release();
-        const s = &streams.*[@as(usize, @intCast(fd))];
+        const s = &streams.*[fd];
         if (s.* == null) {
             return null;
         }
@@ -41,7 +41,7 @@ const FdTable = struct {
     }
 
     // If the stream has fd field, it will be set to the new fd
-    pub fn set(self: *Self, stream: Stream) Stream.Error!i32 {
+    pub fn set(self: *Self, stream: Stream) Stream.Error!usize {
         const streams = self.streams.acquire();
         defer self.streams.release();
         var i = (self.index + 1) % STREAM_NUM;
@@ -52,27 +52,27 @@ const FdTable = struct {
                 streams.*[i] = stream;
                 const set_stream = &streams.*[i];
 
-                const new_fd = @as(i32, @intCast(i));
+                // const new_fd = @as(i32, @intCast(i));
                 switch (set_stream.*.?) {
                     Stream.uart => {},
                     Stream.socket => |*sock| {
-                        sock.setFd(new_fd);
+                        sock.setFd(i);
                     },
                     Stream.opened_file => {},
                     Stream.dir => {},
                 }
 
-                return new_fd;
+                return @intCast(i);
             }
         }
 
         return Stream.Error.FdFull;
     }
 
-    pub fn remove(self: *Self, fd: i32) void {
+    pub fn remove(self: *Self, fd: usize) void {
         const streams = self.streams.acquire();
         defer self.streams.release();
-        streams.*[@as(usize, @intCast(fd))] = null;
+        streams.*[fd] = null;
     }
 };
 
