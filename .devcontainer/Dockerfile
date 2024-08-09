@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/devcontainers/rust:1-1-bookworm
 RUN apt-get update && apt-get install -y cmake
 
 ARG LLVM_URL=https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.0/clang+llvm-15.0.0-x86_64-linux-gnu-rhel-8.4.tar.xz
-ARG ZIG_VERSION=zig-linux-x86_64-0.12.0-dev.1856+94c63f31f
+ARG ZIG_VERSION=zig-linux-x86_64-0.12.1
 
 ENV PATH="/usr/bin/zig:${PATH}"
 ENV PATH=/usr/local/llvm/bin:$PATH
@@ -17,8 +17,8 @@ RUN mkdir -p /usr/local/llvm \
 
 WORKDIR /work
 
-RUN git clone https://github.com/Mewz-project/Wasker.git \
-    && cd Wasker \
+RUN git clone https://github.com/mewz-project/wasker.git \
+    && cd wasker \
     && cargo build --release \
     && cp target/release/wasker /usr/bin
 
