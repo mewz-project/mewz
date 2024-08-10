@@ -4,7 +4,7 @@ pub const EFLAGS_IF = 0x00000200;
 
 pub fn init() void {
     enableSSE();
-    @fence(std.builtin.AtomicOrder.SeqCst);
+    @fence(std.builtin.AtomicOrder.seq_cst);
     enableAVX();
 }
 

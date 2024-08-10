@@ -99,7 +99,8 @@ pub fn init() void {
     }
 
     log.debug.printf("FILES_MAX: {d}\n", .{FILES_MAX});
-    const disk_pointer = @as([*]u8, @ptrCast(&_binary_build_disk_tar_start));
+    const disk_ptr_addr = &_binary_build_disk_tar_start;
+    const disk_pointer = @as([*]u8, @ptrCast(@constCast(disk_ptr_addr)));
 
     var off: usize = 0;
     var i: usize = 0;
