@@ -105,6 +105,7 @@ pub fn build(b: *Build) !void {
         .target = b.resolveTargetQuery(target),
         .linkage = std.builtin.LinkMode.static,
     });
+    kernel.entry = .{ .symbol_name = "boot" };
     kernel.setLinkerScriptPath(.{ .path = "src/x64.ld" });
     kernel.addAssemblyFile(Build.LazyPath{ .path = "src/boot.S" });
     kernel.addAssemblyFile(Build.LazyPath{ .path = "src/interrupt.S" });
