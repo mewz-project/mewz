@@ -20,13 +20,13 @@ pub fn SpinLock(comptime T: type) type {
                 @panic("deadlock");
             }
 
-            while (@atomicRmw(bool, &this.locked, builtin.AtomicRmwOp.Xchg, true, builtin.AtomicOrder.Acquire)) {}
+            while (@atomicRmw(bool, &this.locked, builtin.AtomicRmwOp.Xchg, true, builtin.AtomicOrder.acquire)) {}
 
             return @as(*T, @alignCast(@ptrCast(this.ptr)));
         }
 
         pub fn release(this: *volatile This) void {
-            _ = @atomicRmw(bool, &this.locked, builtin.AtomicRmwOp.Xchg, false, builtin.AtomicOrder.Release);
+            _ = @atomicRmw(bool, &this.locked, builtin.AtomicRmwOp.Xchg, false, builtin.AtomicOrder.release);
 
             popcli();
         }
@@ -43,13 +43,13 @@ pub const Waiter = struct {
     }
 
     pub fn setWait(self: *volatile Self) void {
-        @atomicStore(bool, &self.waiting, true, builtin.AtomicOrder.SeqCst);
+        @atomicStore(bool, &self.waiting, true, builtin.AtomicOrder.seq_cst);
     }
 
     pub fn wait(self: *volatile Self) void {
         while (true) {
             while (self.waiting) {}
-            if (!@atomicLoad(bool, &self.waiting, builtin.AtomicOrder.SeqCst)) {
+            if (!@atomicLoad(bool, &self.waiting, builtin.AtomicOrder.seq_cst)) {
                 break;
             }
         }

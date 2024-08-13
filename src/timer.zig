@@ -41,7 +41,7 @@ pub const Timer = struct {
     }
 
     pub fn isFinished(self: *Self) bool {
-        return @atomicLoad(bool, &self.*.is_finished_internal, std.builtin.AtomicOrder.SeqCst);
+        return @atomicLoad(bool, &self.*.is_finished_internal, std.builtin.AtomicOrder.seq_cst);
     }
 };
 
