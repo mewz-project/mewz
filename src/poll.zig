@@ -96,7 +96,7 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
                 else
                     sub.content.type.fd_write.fd;
 
-                const s = stream.fd_table.get(fd);
+                const s = stream.fd_table.get(@intCast(fd));
                 if (s == null) {
                     events[nevents] = Event{
                         .userdata = sub.userdata,

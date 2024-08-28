@@ -21,7 +21,7 @@ pub const Socket = struct {
     pcb_addr: usize,
     buffer: sync.SpinLock(util.RingBuffer),
     waiter: sync.Waiter,
-    fd: i32 = -1,
+    fd: usize = 0,
     flags: u16 = 0,
     is_connected: bool = false,
     is_read_shutdown: bool = false,
@@ -261,7 +261,7 @@ pub const Socket = struct {
         return port;
     }
 
-    pub fn setFd(self: *Self, fd: i32) void {
+    pub fn setFd(self: *Self, fd: usize) void {
         self.fd = fd;
         lwip.acquire().lwip_set_fd(@as(*anyopaque, @ptrFromInt(self.pcb_addr)), &self.fd);
         lwip.release();
@@ -329,7 +329,7 @@ export fn transmit(addr: [*c]u8, size: u32) callconv(.C) void {
 }
 
 export fn socketPush(fd: i32, ptr: [*]u8, len: usize) i32 {
-    const s = stream.fd_table.get(fd) orelse @panic("socketPush: invalid fd");
+    const s = stream.fd_table.get(@intCast(fd)) orelse @panic("socketPush: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("socketPush: invalid fd"),
@@ -342,9 +342,9 @@ export fn socketPush(fd: i32, ptr: [*]u8, len: usize) i32 {
     return 0;
 }
 
-export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.C) ?*i32 {
+export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.C) ?*usize {
     // unset waiter
-    const s = stream.fd_table.get(fd) orelse @panic("notifyAccepted: invalid fd");
+    const s = stream.fd_table.get(@intCast(fd)) orelse @panic("notifyAccepted: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("notifyAccepted: invalid fd"),
@@ -364,7 +364,7 @@ export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.C) ?*i32 {
 // This function is called when in the lwIP receive callback.
 // It notifies the socket that data is available by setting the waiter.
 export fn notifyReceived(fd: i32) callconv(.C) void {
-    const s = stream.fd_table.get(fd) orelse @panic("notifyConnected: invalid fd");
+    const s = stream.fd_table.get(@intCast(fd)) orelse @panic("notifyConnected: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("notifyReceived: invalid fd"),
@@ -376,7 +376,7 @@ export fn notifyReceived(fd: i32) callconv(.C) void {
 }
 
 export fn notifyConnected(fd: i32) callconv(.C) void {
-    const s = stream.fd_table.get(fd) orelse @panic("notifyConnected: invalid fd");
+    const s = stream.fd_table.get(@intCast(fd)) orelse @panic("notifyConnected: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("notifyConnected: invalid fd"),
@@ -387,7 +387,7 @@ export fn notifyConnected(fd: i32) callconv(.C) void {
 
 export fn notifyClosed(fd: i32) callconv(.C) void {
     // if the socket is already closed, just return
-    const s = stream.fd_table.get(fd) orelse return;
+    const s = stream.fd_table.get(@intCast(fd)) orelse return;
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("notifyClosed: invalid fd"),
@@ -400,7 +400,7 @@ export fn notifyError(fd: i32, err: i32) callconv(.C) void {
     _ = err;
 
     // if the socket is already closed, just return
-    const s = stream.fd_table.get(fd) orelse return;
+    const s = stream.fd_table.get(@intCast(fd)) orelse return;
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
         else => @panic("notifyError: invalid fd"),
