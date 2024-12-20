@@ -301,7 +301,10 @@ pub const AvailRing = struct {
 
     fn new(queue_size: u16, allocator: Allocator) Error!Self {
         const size = @sizeOf(u16) * queue_size + @sizeOf(u16) * 3;
-        const data = try allocator.alignedAlloc(u8, 2, size);
+        const data = allocator.alignedAlloc(u8, 8, size) catch |err| {
+            log.fatal.printf("failed to allocate avail ring: {}\n", .{err});
+            return err;
+        };
         @memset(data, 0);
         return Self{
             .data = data,
@@ -535,7 +538,6 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
             }
 
             self.common_config.queue_select = virtq.index;
-            @fence(std.builtin.AtomicOrder.seq_cst);
             const offset = self.notify_off_multiplier * self.common_config.queue_notify_off;
             const addr = self.notify + @as(usize, @intCast(offset));
             @as(*volatile u16, @ptrFromInt(addr)).* = virtq.index;

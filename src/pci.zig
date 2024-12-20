@@ -92,7 +92,7 @@ pub const Device = struct {
     const Self = @This();
 
     fn new(bus: u8, slot: u8, func: u8) (Allocator.Error || Error)!Self {
-        var config_buffer: [16]u32 align(8) = [16]u32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+        var config_buffer: [16]u32 align(16) = [16]u32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
         for (0..16) |i| {
             const config_value = readConfig(bus, slot, func, @as(u8, @intCast(i * 4)));
             config_buffer[i] = config_value;

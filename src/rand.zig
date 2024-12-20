@@ -1,4 +1,4 @@
-const Random = @import("std").rand.Random;
+const Random = @import("std").Random;
 
 pub const X64Random = Random{
     .ptr = undefined,

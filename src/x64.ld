@@ -51,6 +51,8 @@ SECTIONS {
     .rodata : AT(ADDR(.rodata) - VMA_OFFSET) {
         *(.rodata);
         *(.rodata.*);
+        *(.lrodata);
+        *(.lrodata.*);
 
         . = ALIGN(4096);
         __cpu_local = .;
@@ -63,6 +65,8 @@ SECTIONS {
     .data : AT(ADDR(.data) - VMA_OFFSET) {
         *(.data);
         *(.data.*);
+        *(.ldata);
+        *(.ldata.*);
 
         *(.got*);
 
@@ -75,6 +79,8 @@ SECTIONS {
         __bss = .;
         *(.bss);
         *(.bss.*);
+        *(.lbss);
+        *(.lbss.*);
         __bss_end = .;
 
         /* The kernel page table (physical addresses). */
