@@ -7,6 +7,7 @@ const log = @import("log.zig");
 const fs = @import("fs.zig");
 const heap = @import("heap.zig");
 const mem = @import("mem.zig");
+const mewz_panic = @import("panic.zig");
 const uart = @import("uart.zig");
 const param = @import("param.zig");
 const pci = @import("pci.zig");
@@ -22,6 +23,8 @@ const x64 = @import("x64.zig");
 const wasi = @import("wasi.zig");
 
 extern fn wasker_main() void;
+
+pub const panic = mewz_panic.panic;
 
 export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C) void {
     const bootinfo = @as(*multiboot.BootInfo, @ptrFromInt(boot_params));
@@ -43,6 +46,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C)
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
     }
+
     mem.init2();
     if (param.params.isNetworkEnabled()) {
         tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, &virtio_net.virtio_net.mac_addr);
