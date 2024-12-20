@@ -7,7 +7,7 @@ cd $REPO_ROOT
 mkdir -p build/test
 (stty -echo; sleep 4; (sleep 0.5; echo q) | telnet localhost 1234) &
 (sleep 2; curl localhost:1234) &
-./scripts/run-qemu.sh | tee build/test/output.txt
+./scripts/run-qemu.sh "$@" | tee build/test/output.txt
 
 if ! grep -q "Integration test passed" build/test/output.txt; then
   echo "Integration Test FAILED!!"
