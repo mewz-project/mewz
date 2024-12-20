@@ -6,7 +6,7 @@ cd $REPO_ROOT
 
 QEMU_ARGS=(
     "-kernel"
-    "zig-out/bin/mewz.elf"
+    "zig-out/bin/mewz.qemu.elf"
     "-cpu"
     "Icelake-Server"
     "-m"
