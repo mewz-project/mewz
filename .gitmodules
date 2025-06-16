@@ -1,6 +1,6 @@
 [submodule "submodules/lwip"]
 	path = submodules/lwip
-	url = https://git.savannah.nongnu.org/git/lwip.git
+	url = git@github.com:lwip-tcpip/lwip.git
 [submodule "submodules/newlib"]
 	path = submodules/newlib
 	url = https://sourceware.org/git/newlib-cygwin.git
