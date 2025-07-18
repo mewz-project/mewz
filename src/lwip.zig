@@ -17,7 +17,7 @@ pub fn release() void {
 
 const VTable = struct {
     lwip_new_tcp_pcb: *const fn (ip_type: u8) callconv(.C) usize = lwip_new_tcp_pcb,
-    lwip_set_fd: *const fn (pcb: *anyopaque, fd_ptr: *i32) callconv(.C) void = lwip_set_fd,
+    lwip_set_fd: *const fn (pcb: *anyopaque, fd_ptr: *usize) callconv(.C) void = lwip_set_fd,
     lwip_tcp_bind: *const fn (pcb: *anyopaque, ipaddr: *anyopaque, port: i32) callconv(.C) i8 = lwip_tcp_bind,
     tcp_listen_with_backlog: *const fn (pcb: *anyopaque, backblog: u8) callconv(.C) ?*anyopaque = tcp_listen_with_backlog,
     lwip_accept: *const fn (pcb: *anyopaque) callconv(.C) void = lwip_accept,
@@ -35,7 +35,7 @@ const VTable = struct {
 };
 
 extern fn lwip_new_tcp_pcb(ip_type: u8) usize;
-extern fn lwip_set_fd(pcb: *anyopaque, fd_ptr: *i32) void;
+extern fn lwip_set_fd(pcb: *anyopaque, fd_ptr: *usize) void;
 extern fn lwip_tcp_bind(pcb: *anyopaque, ipaddr: *anyopaque, port: i32) i8;
 extern fn tcp_listen_with_backlog(pcb: *anyopaque, backblog: u8) ?*anyopaque;
 extern fn lwip_accept(pcb: *anyopaque) void;
