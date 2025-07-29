@@ -20,11 +20,9 @@ jobs:
           repository: mewz-project/mewz
           submodules: true
 
-      - name: Install Zig
-        uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.0-dev.1254+c9ce1debe
-          cache: true
+          version: master
 
       - name: Install packages for running tests
         uses: awalsh128/cache-apt-pkgs-action@v1.5.1
