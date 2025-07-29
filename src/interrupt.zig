@@ -110,7 +110,7 @@ pub fn registerIrq(irq: u8, handler: *const fn (*InterruptFrame) void) void {
 }
 
 var ticks: u32 = 0;
-export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.C) void {
+export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.c) void {
     switch (trapno) {
         T_BRKPT => {
             const buf = @as([*]u8, @ptrFromInt(frame.rdi))[0..1000];

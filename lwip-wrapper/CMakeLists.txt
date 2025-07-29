@@ -1,3 +1,6 @@
+cmake_minimum_required(VERSION 4.0)
+project(LwipForMewz)
+
 set(LWIP_DIR 
     ${CMAKE_CURRENT_SOURCE_DIR}/../submodules/lwip
 )
@@ -10,6 +13,7 @@ set(LWIP_INCLUDE_DIRS
 set (LWIP_DEFINITIONS LWIP_DEBUG=0)
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_C_STANDARD 11)
 
 set(LWIP_COMPILER_FLAGS -ffreestanding -fno-stack-protector  -U_FORTIFY_SOURCE)
 include(${LWIP_DIR}/src/Filelists.cmake)

@@ -33,6 +33,7 @@ const SpinLock = sync.SpinLock(empty);
 const empty = struct {};
 
 extern fn malloc(usize) ?*anyopaque;
+extern fn realloc(?*anyopaque, usize) ?*anyopaque;
 extern fn free(?*anyopaque) void;
 
 var e = empty{};
@@ -48,6 +49,7 @@ pub const runtime_allocator = Allocator{
 const raw_c_allocator_vtable = Allocator.VTable{
     .alloc = rawCAlloc,
     .resize = rawCResize,
+    .remap = rawCRemap,
     .free = rawCFree,
 };
 
@@ -81,7 +83,7 @@ pub export fn sbrk(diff: i32) usize {
 fn rawCAlloc(
     _: *anyopaque,
     len: usize,
-    log2_ptr_align: u8,
+    alignment: std.mem.Alignment,
     ret_addr: usize,
 ) ?[*]u8 {
     _ = ret_addr;
@@ -89,46 +91,60 @@ fn rawCAlloc(
     _ = lock.acquire();
     defer lock.release();
 
-    if (log2_ptr_align > comptime std.math.log2_int(usize, @alignOf(std.c.max_align_t))) {
-        @panic("rawCAlloc: alignment too small");
-    }
-
+    std.debug.assert(alignment.compare(.lte, .of(std.c.max_align_t)));
     // Note that this pointer cannot be aligncasted to max_align_t because if
     // len is < max_align_t then the alignment can be smaller. For example, if
     // max_align_t is 16, but the user requests 8 bytes, there is no built-in
     // type in C that is size 8 and has 16 byte alignment, so the alignment may
     // be 8 bytes rather than 16. Similarly if only 1 byte is requested, malloc
     // is allowed to return a 1-byte aligned pointer.
-    return @as(?[*]u8, @ptrCast(malloc(len)));
+    return @ptrCast(malloc(len));
 }
 
 fn rawCResize(
-    _: *anyopaque,
-    buf: []u8,
-    log2_old_align: u8,
+    context: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
     new_len: usize,
-    ret_addr: usize,
+    return_address: usize,
 ) bool {
-    _ = log2_old_align;
-    _ = ret_addr;
+    _ = context;
+    _ = memory;
+    _ = alignment;
+    _ = new_len;
+    _ = return_address;
+    return false;
+}
+
+fn rawCRemap(
+    context: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
+    new_len: usize,
+    return_address: usize,
+) ?[*]u8 {
+    _ = context;
+    _ = alignment;
+    _ = return_address;
 
     _ = lock.acquire();
     defer lock.release();
 
-    return new_len <= buf.len;
+    return @ptrCast(realloc(memory.ptr, new_len));
 }
 
 fn rawCFree(
-    _: *anyopaque,
-    buf: []u8,
-    log2_old_align: u8,
-    ret_addr: usize,
+    context: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
+    return_address: usize,
 ) void {
-    _ = log2_old_align;
-    _ = ret_addr;
+    _ = context;
+    _ = alignment;
+    _ = return_address;
 
     _ = lock.acquire();
     defer lock.release();
 
-    free(buf.ptr);
+    free(memory.ptr);
 }

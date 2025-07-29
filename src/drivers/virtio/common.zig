@@ -91,7 +91,7 @@ pub const Virtqueue = struct {
     const Self = @This();
 
     fn new(index: u16, queue_size: u16, allocator: Allocator) Error!Self {
-        const desc_slice = try allocator.alignedAlloc(VirtqDesc, 16, queue_size * @sizeOf(VirtqDesc));
+        const desc_slice = try allocator.alignedAlloc(VirtqDesc, std.mem.Alignment.fromByteUnits(16), queue_size * @sizeOf(VirtqDesc));
         @memset(desc_slice, VirtqDesc{ .addr = 0, .len = 0, .flags = 0, .next = 0 });
         const desc = @as([*]volatile VirtqDesc, @ptrCast(desc_slice));
         for (0..queue_size) |i| {
@@ -301,7 +301,7 @@ pub const AvailRing = struct {
 
     fn new(queue_size: u16, allocator: Allocator) Error!Self {
         const size = @sizeOf(u16) * queue_size + @sizeOf(u16) * 3;
-        const data = allocator.alignedAlloc(u8, 8, size) catch |err| {
+        const data = allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(8), size) catch |err| {
             log.fatal.printf("failed to allocate avail ring: {}\n", .{err});
             return err;
         };
@@ -355,7 +355,7 @@ pub const UsedRing = struct {
 
     fn new(queue_size: u16, allocator: Allocator) Error!Self {
         const size = @sizeOf(UsedRingEntry) * queue_size + @sizeOf(u16) * 3;
-        const data = try allocator.alignedAlloc(u8, 4, size);
+        const data = try allocator.alignedAlloc(u8, std.mem.Alignment.fromByteUnits(4), size);
         @memset(data, 0);
         return Self{
             .data = data,

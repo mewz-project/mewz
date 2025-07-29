@@ -29,7 +29,7 @@ const linear_memory_offset: usize = 0xffff800000000000;
 var linear_memory_top: usize = linear_memory_offset;
 var linear_memory_block_num: usize = 0;
 
-pub export fn memory_grow(num: usize) callconv(.C) usize {
+pub export fn memory_grow(num: usize) callconv(.c) usize {
     log.debug.printf("WASI memory_grow: {d}\n", .{num});
     const old_num = linear_memory_block_num;
     for (0..num) |_| {
@@ -41,7 +41,7 @@ pub export fn memory_grow(num: usize) callconv(.C) usize {
     return old_num;
 }
 
-pub export fn memory_base() callconv(.C) usize {
+pub export fn memory_base() callconv(.c) usize {
     log.debug.printf("WASI memory_base\n", .{});
     return linear_memory_offset;
 }
@@ -73,7 +73,7 @@ pub export fn environ_sizes_get(env_count_addr: i32, env_buf_size_addr: i32) Was
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.C) WasiError {
+pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_write: {d} {d} {d} {d}\n", .{ fd, buf_iovec_addr, vec_len, size_addr });
 
     @setRuntimeSafety(false);
@@ -105,7 +105,7 @@ pub export fn fd_write(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i3
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.C) WasiError {
+pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_read: fd={d} buf_iovec_addr=0x{x} vec_len={d} size_addr=0x{x}\n", .{ fd, buf_iovec_addr, vec_len, size_addr });
 
     @setRuntimeSafety(false);
@@ -145,7 +145,7 @@ pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_close(fd: i32) callconv(.C) WasiError {
+pub export fn fd_close(fd: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_close: {d}\n", .{fd});
     var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
     s.close() catch return WasiError.BADF;
@@ -153,7 +153,7 @@ pub export fn fd_close(fd: i32) callconv(.C) WasiError {
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_filestat_get(fd: i32, filestat_addr: i32) callconv(.C) WasiError {
+pub export fn fd_filestat_get(fd: i32, filestat_addr: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_filestat_get: {d} {d}\n", .{ fd, filestat_addr });
 
     var filestat_ptr = @as(*types.FileStat, @ptrFromInt(@as(usize, @intCast(filestat_addr)) + linear_memory_offset));
@@ -171,7 +171,7 @@ pub export fn fd_filestat_get(fd: i32, filestat_addr: i32) callconv(.C) WasiErro
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_fdstat_get(fd: i32, fdstat_addr: i32) callconv(.C) WasiError {
+pub export fn fd_fdstat_get(fd: i32, fdstat_addr: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_fdstat_get: {d} {d}\n", .{ fd, fdstat_addr });
 
     var fdstat_ptr = @as(*FdStat, @ptrFromInt(@as(usize, @intCast(fdstat_addr)) + linear_memory_offset));
@@ -184,7 +184,7 @@ pub export fn fd_fdstat_get(fd: i32, fdstat_addr: i32) callconv(.C) WasiError {
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_fdstat_set_flags(fd: i32, flags: i32) callconv(.C) WasiError {
+pub export fn fd_fdstat_set_flags(fd: i32, flags: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_fdstat_set_flags: {d} {d}\n", .{ fd, flags });
 
     var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
@@ -192,7 +192,7 @@ pub export fn fd_fdstat_set_flags(fd: i32, flags: i32) callconv(.C) WasiError {
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_prestat_get(fd: i32, prestat_addr: i32) callconv(.C) WasiError {
+pub export fn fd_prestat_get(fd: i32, prestat_addr: i32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_prestat_get: {d} {d}\n", .{ fd, prestat_addr });
     var prestat_ptr = @as(*Prestat, @ptrFromInt(@as(usize, @intCast(prestat_addr)) + linear_memory_offset));
 
@@ -282,7 +282,7 @@ pub export fn poll_oneoff(
     output_addr: i32,
     nsubscriptions: i32,
     nevents_addr: i32,
-) callconv(.C) WasiError {
+) callconv(.c) WasiError {
     log.debug.printf("WASI poll_oneoff: {d} {d} {d} {d}\n", .{ input_addr, output_addr, nsubscriptions, nevents_addr });
 
     const subscriptions = @as([*]types.Subscription, @ptrFromInt(@as(usize, @intCast(input_addr)) + linear_memory_offset))[0..@as(usize, @intCast(nsubscriptions))];
@@ -294,14 +294,14 @@ pub export fn poll_oneoff(
     return WasiError.SUCCESS;
 }
 
-pub export fn proc_exit(status: i32) callconv(.C) void {
+pub export fn proc_exit(status: i32) callconv(.c) void {
     log.debug.printf("WASI proc_exit: {d}\n", .{status});
 
     x64.shutdown(@as(u16, @intCast(status)));
     unreachable;
 }
 
-pub export fn sched_yield() callconv(.C) WasiError {
+pub export fn sched_yield() callconv(.c) WasiError {
     log.debug.printf("WASI sched_yield\n", .{});
 
     return WasiError.SUCCESS;
@@ -311,7 +311,7 @@ pub export fn sock_open(
     family: AddressFamily,
     typ: SocketType,
     fd_addr: i32,
-) callconv(.C) WasiError {
+) callconv(.c) WasiError {
     log.debug.printf("WASI sock_open: {d} {d} {d}\n", .{ @intFromEnum(family), @intFromEnum(typ), fd_addr });
 
     const fd = @as(*i32, @ptrFromInt(@as(usize, @intCast(fd_addr)) + linear_memory_offset));
@@ -338,7 +338,7 @@ pub export fn sock_bind(
     fd: i32,
     ip_iovec_addr: i32,
     port: i32,
-) callconv(.C) WasiError {
+) callconv(.c) WasiError {
     log.debug.printf("WASI sock_bind: {d} {d} {d}\n", .{ fd, ip_iovec_addr, port });
 
     @setRuntimeSafety(false);
