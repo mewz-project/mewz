@@ -100,7 +100,7 @@ pub fn build(b: *Build) !void {
         .name = "mewz.elf",
         .root_module = kernelModule,
         .linkage = .static,
-        .use_llvm = true,
+        .use_llvm = true, // Needed for inline assembly due to a Zig compiler's bug 
     });
 
     kernel.linker_script = b.path("src/x64.ld");
