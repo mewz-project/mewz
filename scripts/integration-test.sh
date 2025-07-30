@@ -18,6 +18,7 @@ if [ "$CI_MODE" = true ]; then
   TELNET_SLEEP=10
   TELNET_ECHO_SLEEP=2
   CURL_SLEEP=8
+  ./scripts/rewrite-kernel.sh
 else
   TELNET_SLEEP=4
   TELNET_ECHO_SLEEP=0.5
