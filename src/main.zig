@@ -26,7 +26,7 @@ extern fn wasker_main() void;
 
 pub const panic = mewz_panic.panic;
 
-export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C) void {
+export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c) void {
     const bootinfo = @as(*multiboot.BootInfo, @ptrFromInt(boot_params));
     const cmdline = util.getString(bootinfo.cmdline);
 
@@ -73,7 +73,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.C)
 }
 
 // ssize_t write(int fd, const void* buf, size_t count)
-export fn write(fd: i32, b: *const u8, count: usize) callconv(.C) isize {
+export fn write(fd: i32, b: *const u8, count: usize) callconv(.c) isize {
     if (fd == 1 or fd == 2) {
         const buf = @as([*]u8, @constCast(@ptrCast(b)))[0..count];
         log.fatal.print(buf);

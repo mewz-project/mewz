@@ -81,6 +81,6 @@ pub fn unregisterAll() void {
     timers.release();
 }
 
-export fn sys_now() callconv(.C) i32 {
+export fn sys_now() callconv(.c) i32 {
     return @as(i32, @intCast(getNanoSeconds() / 1000000));
 }

@@ -323,7 +323,7 @@ fn wasiToLwipAddressType(t: wasi.AddressFamily) u8 {
 
 pub extern fn init(ip: u32, netmask: u32, gateway: u32, macaddr: *[6]u8) void;
 
-export fn transmit(addr: [*c]u8, size: u32) callconv(.C) void {
+export fn transmit(addr: [*c]u8, size: u32) callconv(.c) void {
     const data = addr[0..size];
     virito_net.virtio_net.transmit(data);
 }
@@ -342,7 +342,7 @@ export fn socketPush(fd: i32, ptr: [*]u8, len: usize) i32 {
     return 0;
 }
 
-export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.C) ?*i32 {
+export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.c) ?*i32 {
     // unset waiter
     const s = stream.fd_table.get(fd) orelse @panic("notifyAccepted: invalid fd");
     var socket = switch (s.*) {
@@ -363,7 +363,7 @@ export fn notifyAccepted(pcb: *anyopaque, fd: i32) callconv(.C) ?*i32 {
 
 // This function is called when in the lwIP receive callback.
 // It notifies the socket that data is available by setting the waiter.
-export fn notifyReceived(fd: i32) callconv(.C) void {
+export fn notifyReceived(fd: i32) callconv(.c) void {
     const s = stream.fd_table.get(fd) orelse @panic("notifyConnected: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
@@ -375,7 +375,7 @@ export fn notifyReceived(fd: i32) callconv(.C) void {
     socket.waiter.waiting = false;
 }
 
-export fn notifyConnected(fd: i32) callconv(.C) void {
+export fn notifyConnected(fd: i32) callconv(.c) void {
     const s = stream.fd_table.get(fd) orelse @panic("notifyConnected: invalid fd");
     var socket = switch (s.*) {
         stream.Stream.socket => &s.socket,
@@ -385,7 +385,7 @@ export fn notifyConnected(fd: i32) callconv(.C) void {
     socket.waiter.waiting = false;
 }
 
-export fn notifyClosed(fd: i32) callconv(.C) void {
+export fn notifyClosed(fd: i32) callconv(.c) void {
     // if the socket is already closed, just return
     const s = stream.fd_table.get(fd) orelse return;
     var socket = switch (s.*) {
@@ -396,7 +396,7 @@ export fn notifyClosed(fd: i32) callconv(.C) void {
     socket.waiter.waiting = false;
 }
 
-export fn notifyError(fd: i32, err: i32) callconv(.C) void {
+export fn notifyError(fd: i32, err: i32) callconv(.c) void {
     _ = err;
 
     // if the socket is already closed, just return

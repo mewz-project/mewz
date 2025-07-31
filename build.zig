@@ -90,13 +90,17 @@ pub fn build(b: *Build) !void {
         .ofmt = .elf,
     });
 
-    const kernel = b.addExecutable(.{
-        .name = "mewz.elf",
+    const kernelModule = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .optimize = optimize,
         .target = target,
-        .linkage = .static,
         .code_model = .kernel,
+    });
+    const kernel = b.addExecutable(.{
+        .name = "mewz.elf",
+        .root_module = kernelModule,
+        .linkage = .static,
+        .use_llvm = true, // Needed for inline assembly due to a Zig compiler's bug
     });
 
     kernel.linker_script = b.path("src/x64.ld");
@@ -154,7 +158,7 @@ pub fn build(b: *Build) !void {
 
 fn createTestDir() !void {
     const cwd = std.fs.cwd();
-    const test_dir = try cwd.makeOpenPath(TEST_DIR_PATH, std.fs.Dir.OpenDirOptions{});
+    const test_dir = try cwd.makeOpenPath(TEST_DIR_PATH, std.fs.Dir.OpenOptions{});
     const file = try test_dir.createFile("test.txt", std.fs.File.CreateFlags{});
     defer file.close();
     _ = try file.write("fd_read test\n");

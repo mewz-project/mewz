@@ -16,22 +16,22 @@ pub fn release() void {
 }
 
 const VTable = struct {
-    lwip_new_tcp_pcb: *const fn (ip_type: u8) callconv(.C) usize = lwip_new_tcp_pcb,
-    lwip_set_fd: *const fn (pcb: *anyopaque, fd_ptr: *i32) callconv(.C) void = lwip_set_fd,
-    lwip_tcp_bind: *const fn (pcb: *anyopaque, ipaddr: *anyopaque, port: i32) callconv(.C) i8 = lwip_tcp_bind,
-    tcp_listen_with_backlog: *const fn (pcb: *anyopaque, backblog: u8) callconv(.C) ?*anyopaque = tcp_listen_with_backlog,
-    lwip_accept: *const fn (pcb: *anyopaque) callconv(.C) void = lwip_accept,
-    lwip_tcp_sndbuf: *const fn (pcb: *anyopaque) callconv(.C) u16 = lwip_tcp_sndbuf,
-    lwip_send: *const fn (pcb: *anyopaque, buf: *anyopaque, len: u16) callconv(.C) i8 = lwip_send,
-    lwip_connect: *const fn (pcb: *anyopaque, ipaddr: *anyopaque, port: i32) callconv(.C) i8 = lwip_connect,
-    tcp_shutdown: *const fn (pcb: *anyopaque, shut_rx: i32, shut_tx: i32) callconv(.C) i8 = tcp_shutdown,
-    lwip_tcp_close: *const fn (pcb: *anyopaque) callconv(.C) i8 = lwip_tcp_close,
-    lwip_unset_fd: *const fn (pcb: *anyopaque) callconv(.C) void = lwip_unset_fd,
-    lwip_get_local_ip: *const fn (pcb: *anyopaque) callconv(.C) *IpAddr = lwip_get_local_ip,
-    lwip_get_remote_ip: *const fn (pcb: *anyopaque) callconv(.C) *IpAddr = lwip_get_remote_ip,
-    lwip_get_local_port: *const fn (pcb: *anyopaque) callconv(.C) u16 = lwip_get_local_port,
-    lwip_get_remote_port: *const fn (pcb: *anyopaque) callconv(.C) u16 = lwip_get_remote_port,
-    sys_check_timeouts: *const fn () callconv(.C) void = sys_check_timeouts,
+    lwip_new_tcp_pcb: *const fn (ip_type: u8) callconv(.c) usize = lwip_new_tcp_pcb,
+    lwip_set_fd: *const fn (pcb: *anyopaque, fd_ptr: *i32) callconv(.c) void = lwip_set_fd,
+    lwip_tcp_bind: *const fn (pcb: *anyopaque, ipaddr: *anyopaque, port: i32) callconv(.c) i8 = lwip_tcp_bind,
+    tcp_listen_with_backlog: *const fn (pcb: *anyopaque, backblog: u8) callconv(.c) ?*anyopaque = tcp_listen_with_backlog,
+    lwip_accept: *const fn (pcb: *anyopaque) callconv(.c) void = lwip_accept,
+    lwip_tcp_sndbuf: *const fn (pcb: *anyopaque) callconv(.c) u16 = lwip_tcp_sndbuf,
+    lwip_send: *const fn (pcb: *anyopaque, buf: *anyopaque, len: u16) callconv(.c) i8 = lwip_send,
+    lwip_connect: *const fn (pcb: *anyopaque, ipaddr: *anyopaque, port: i32) callconv(.c) i8 = lwip_connect,
+    tcp_shutdown: *const fn (pcb: *anyopaque, shut_rx: i32, shut_tx: i32) callconv(.c) i8 = tcp_shutdown,
+    lwip_tcp_close: *const fn (pcb: *anyopaque) callconv(.c) i8 = lwip_tcp_close,
+    lwip_unset_fd: *const fn (pcb: *anyopaque) callconv(.c) void = lwip_unset_fd,
+    lwip_get_local_ip: *const fn (pcb: *anyopaque) callconv(.c) *IpAddr = lwip_get_local_ip,
+    lwip_get_remote_ip: *const fn (pcb: *anyopaque) callconv(.c) *IpAddr = lwip_get_remote_ip,
+    lwip_get_local_port: *const fn (pcb: *anyopaque) callconv(.c) u16 = lwip_get_local_port,
+    lwip_get_remote_port: *const fn (pcb: *anyopaque) callconv(.c) u16 = lwip_get_remote_port,
+    sys_check_timeouts: *const fn () callconv(.c) void = sys_check_timeouts,
 };
 
 extern fn lwip_new_tcp_pcb(ip_type: u8) usize;
