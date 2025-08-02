@@ -10,13 +10,13 @@ First, build the program into Wasm.
 
 ```sh
 cd examples/static_file_server
-cargo build --target wasm32-wasi
+cargo build --target wasm32-wasip1
 ```
 
 Then, convert it into a native object file with Wasker.
 
 ```sh
-wasker target/wasm32-wasi/debug/static_file_server.wasm
+wasker target/wasm32-wasip1/debug/static_file_server.wasm
 ```
 
 Now you can run it on Mewz.
