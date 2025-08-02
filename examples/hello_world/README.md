@@ -10,14 +10,14 @@ First, build the program into Wasm.
 
 ```sh
 cd examples/hello_world
-# In the Dev Container, you should run `rustup target add wasm32-wasi in advance.
-cargo build --target wasm32-wasi
+# In the Dev Container, you should run `rustup target add wasm32-wasip1 in advance.
+cargo build --target wasm32-wasip1
 ```
 
 Then, convert it into a native object file with Wasker.
 
 ```sh
-wasker target/wasm32-wasi/debug/hello_world.wasm
+wasker target/wasm32-wasip1/debug/hello_world.wasm
 ```
 
 Now you can run it on Mewz.
