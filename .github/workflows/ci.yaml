@@ -25,7 +25,7 @@ jobs:
           version: master
 
       - name: Install packages for running tests
-        uses: awalsh128/cache-apt-pkgs-action@v1.5.1
+        uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
           packages: qemu-system mtools
 
