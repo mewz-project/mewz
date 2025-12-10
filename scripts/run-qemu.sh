@@ -4,6 +4,7 @@ set -ex
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT
 
+QEMU_BIN="qemu-system-x86_64"
 QEMU_ARGS=(
     "-kernel"
     "zig-out/bin/mewz.qemu.elf"
@@ -38,6 +39,12 @@ while [[ $# -gt 0 ]]; do
         -d | --debug)
             DEBUG=true
             ;;
+        --vaccel)
+            QEMU_ARGS+=("-object" "acceldev-backend-vaccel,id=gen0"
+                         "-device" "virtio-accel-pci,id=accl0,runtime=gen0")
+            # TODO: Add qemu-vaccel as a dependency
+            QEMU_BIN="/opt/mount/qemu-vaccel/build/qemu-system-x86_64"
+            ;;
         -*)
             echo "invalid option"
             exit 1
@@ -53,7 +60,7 @@ if $DEBUG; then
 fi
 
 # Let x be the return code of Mewz. Then, the return code of QEMU is 2x+1.
-qemu-system-x86_64 "${QEMU_ARGS[@]}" || QEMU_RETURN_CODE=$(( $? ))
+"$QEMU_BIN" "${QEMU_ARGS[@]}" || QEMU_RETURN_CODE=$(( $? ))
 RETURN_CODE=$(( (QEMU_RETURN_CODE-1)/2 ))
 
 exit $RETURN_CODE
