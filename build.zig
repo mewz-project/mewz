@@ -11,6 +11,7 @@ const BuildParams = struct {
     dir_path: ?[]const u8 = undefined,
     is_test: bool = undefined,
     log_level: []const u8 = undefined,
+    qemu_vaccel: bool = false,
 
     const Self = @This();
 
@@ -48,6 +49,13 @@ const BuildParams = struct {
             }
         } else {
             params.is_test = false;
+        }
+
+        const qemu_vaccel_option = b.option(bool, "qemu-vaccel", "use vAccel-patched QEMU");
+        if (qemu_vaccel_option) |q| {
+            params.qemu_vaccel = q;
+        } else {
+            params.qemu_vaccel = false;
         }
 
         return params;
@@ -134,22 +142,22 @@ pub fn build(b: *Build) !void {
     const rewrite_kernel_cmd = b.addSystemCommand(&[_][]const u8{"./scripts/rewrite-kernel.sh"});
     rewrite_kernel_cmd.step.dependOn(b.getInstallStep());
 
-    const run_cmd_str = if (params.is_test)
-        [_][]const u8{"./scripts/integration-test.sh"}
+    const run_cmd_str: []const []const u8 = 
+    if (params.is_test)
+        &[_][]const u8{"./scripts/integration-test.sh"}
+    else if (params.qemu_vaccel)
+        &[_][]const u8{"./scripts/run-qemu.sh", "--vaccel"}
     else
-        [_][]const u8{"./scripts/run-qemu.sh"};
+        &[_][]const u8{"./scripts/run-qemu.sh"};
 
-    const run_cmd = b.addSystemCommand(&run_cmd_str);
+    const run_cmd = b.addSystemCommand(run_cmd_str);
     run_cmd.step.dependOn(&rewrite_kernel_cmd.step);
 
     const run_step = b.step("run", "Run the kernel");
     run_step.dependOn(&run_cmd.step);
 
-    const debug_cmd_str = run_cmd_str ++ [_][]const u8{
-        "--debug",
-    };
-
-    const debug_cmd = b.addSystemCommand(&debug_cmd_str);
+    const debug_cmd = b.addSystemCommand(run_cmd_str);
+    debug_cmd.addArg("--debug");
     debug_cmd.step.dependOn(&rewrite_kernel_cmd.step);
 
     const debug_step = b.step("debug", "Debug the kernel");
