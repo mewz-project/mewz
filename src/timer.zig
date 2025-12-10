@@ -5,7 +5,7 @@ const sync = @import("sync.zig");
 const net = @import("drivers/virtio/net.zig");
 
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 const SpinLock = sync.SpinLock;
 
 var timers_inner: ArrayList(*Timer) = undefined;

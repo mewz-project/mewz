@@ -22,7 +22,8 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: master
+          version: 0.15.1
+          cache: true
 
       - name: Install packages for running tests
         uses: awalsh128/cache-apt-pkgs-action@v1.5.1
