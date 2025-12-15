@@ -31,21 +31,21 @@ jobs:
           packages: qemu-system mtools
 
       - name: Cache mewz
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path:
             zig-cache
           key: ${{ runner.os }}-mewz
 
       - name: Cache Newlib
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path:
             build/newlib
           key: ${{ runner.os }}-mewz-newlib
 
       - name: Cache lwIP
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path:
             build/lwip
