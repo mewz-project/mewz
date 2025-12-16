@@ -16,6 +16,7 @@ const tcpip = @import("tcpip.zig");
 const timer = @import("timer.zig");
 const util = @import("util.zig");
 const multiboot = @import("multiboot.zig");
+const vaccelrt = @import("vaccelrt.zig");
 const virtio_net = @import("drivers/virtio/net.zig");
 const virtio_vaccel = @import("drivers/virtio/vaccel.zig");
 const interrupt = @import("interrupt.zig");
@@ -48,7 +49,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
         virtio_net.init();
     }
     virtio_vaccel.init();
-    vaccel_demo();
+    _ = vaccelrt.vaccel_session_init();
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {
@@ -73,13 +74,6 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
 
     x64.shutdown(0);
     unreachable;
-}
-
-fn vaccel_demo() void {
-    const out_args = [_]virtio_vaccel.AccelArg{};
-    const in_args = [_]virtio_vaccel.AccelArg{};
-    const result = virtio_vaccel.virtio_vaccel.createSession(&out_args, &in_args);
-    log.info.printf("virtio-vaccel: create session result: status={}, session_id={}\n", .{result.status, result.session_id});
 }
 
 // ssize_t write(int fd, const void* buf, size_t count)

@@ -15,36 +15,6 @@ const VIRTIO_ACCEL_DESTROY_SESSION = 2;
 const VIRTIO_ACCEL_DO_OP = 3;
 const VIRTIO_ACCEL_GET_TIMERS = 4;
 
-// struct virtio_accel_arg {
-//     uint32_t len;
-//     unsigned char *buf;
-//     unsigned char *usr_buf;
-//     unsigned char *usr_pages;
-//     uint32_t usr_npages;
-//     unsigned char padding[5];
-// };
-
-// struct virtio_accel_op {
-//     uint32_t in_nr;
-//     uint32_t out_nr;
-//     struct virtio_accel_arg *in;
-//     struct virtio_accel_arg *out;
-// };
-
-// struct virtio_accel_hdr {
-//     uint32_t sess_id;
-
-// #define VIRTIO_ACCEL_NO_OP                   0
-// #define VIRTIO_ACCEL_CREATE_SESSION          1
-// #define VIRTIO_ACCEL_DESTROY_SESSION         2
-// #define VIRTIO_ACCEL_DO_OP                   3
-// #define VIRTIO_ACCEL_GET_TIMERS              4
-//     uint32_t op_type;
-
-//     /* session create structs */
-//     struct virtio_accel_op op;
-// };
-
 const VirtioVAccelArg = packed struct {
     len: u32,
     buf: u64,
@@ -256,6 +226,16 @@ const VirtioVAccel = struct {
             &session_id,
         );
         return .{ .status = status, .session_id = @intCast(session_id) };
+    }
+
+    pub fn doOp(self: *Self, session_id: u32, out_args: []const AccelArg, in_args: []const AccelArg) u32 {
+        return self.sendRequest(
+            VIRTIO_ACCEL_DO_OP,
+            session_id,
+            out_args,
+            in_args,
+            null,
+        );
     }
 };
 
