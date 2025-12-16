@@ -76,10 +76,8 @@ pub const AccelArg = struct {
 const VirtioVAccel = struct {
     virtio: common.Virtio(VirtioVAccelDeviceConfig),
 
-    tx_ring_index: usize,
-    tx_ring: []u8,
-    rx_ring: []u8,
-
+    // command_ring: []u8,
+    
     const Self = @This();
 
     fn new(virtio: common.Virtio(VirtioVAccelDeviceConfig)) Self {
@@ -91,47 +89,24 @@ const VirtioVAccel = struct {
         }        
         log.info.printf("virtio-vaccel: status={x}, services={x}, max_size={}\n", .{ status, services, max_size });
         
-        var self = Self{
+        const self = Self{
             .virtio = virtio,
-            .tx_ring_index = 0,
-            .tx_ring = undefined,
-            .rx_ring = undefined,
+            // .command_ring = undefined,
         };
 
-        const tx_ring_len = @as(usize, @intCast(self.transmitq().num_descs));
-        const rx_ring_len = @as(usize, @intCast(self.receiveq().num_descs));
-        self.tx_ring = mem.boottime_allocator.?.alloc(u8, tx_ring_len * VACCEL_OP_MAX_LEN) catch @panic("virtio-vaccel: tx ring alloc failed");
-        self.rx_ring = mem.boottime_allocator.?.alloc(u8, rx_ring_len * VACCEL_OP_MAX_LEN) catch @panic("virtio-vaccel: rx ring alloc failed");
-
-        // Since response from qemu happens only after request, we don't need to preallocate rx buffers.
-        // for (0..rx_ring_len) |i| {
-        //     const desc_buf = common.VirtqDescBuffer{
-        //         .addr = @intFromPtr(&self.rx_ring[i * VACCEL_OP_MAX_LEN]),
-        //         .len = VACCEL_OP_MAX_LEN,
-        //         .type = common.VirtqDescBufferType.WritableFromDevice,
-        //     };
-        //     var chain = [1]common.VirtqDescBuffer{desc_buf};
-        //     self.receiveq().enqueue(chain[0..1]);
-        //     self.virtio.transport.notifyQueue(self.receiveq());
-        // }
+        // TODO: reuse argument buffers
+        // const ring_len = @as(usize, @intCast(self.virtq().num_descs));
+        // self.command_ring = mem.boottime_allocator.?.alloc(u8, ring_len * VACCEL_OP_MAX_LEN) catch @panic("virtio-vaccel: command ring alloc failed");
 
         return self;
     }
 
-    fn receiveq(self: *Self) *common.Virtqueue {
+    fn virtq(self: *Self) *common.Virtqueue {
         return &self.virtio.virtqueues[0];
-    }
-
-    fn transmitq(self: *Self) *common.Virtqueue {
-        return &self.virtio.virtqueues[1];
-    }
-
-    pub fn receive(_: *Self) void {
     }
 
     pub fn sendRequest(self: *Self, op_type: u32, session_id: u32, out_args: []const AccelArg, in_args: []const AccelArg, session_id_out: ?*u64) u32 {
         log.info.printf("virtio-vaccel: sendRequest op_type={}, session_id={}, out_args.len={}, in_args.len={}\n", .{op_type, session_id, out_args.len, in_args.len});
-        _ = self.receiveq();
         var hdr = VirtioVAccelHdr {
             .sess_id = session_id,
             .op_type = op_type,
@@ -255,17 +230,19 @@ const VirtioVAccel = struct {
 
 
         // Enqueue the descriptor chain
-        const vq = self.transmitq();
+        const vq = self.virtq();
         vq.enqueue(chain[0..idx_chain]);
         self.virtio.transport.notifyQueue(vq);
 
+        const num_descs = vq.num_descs;
+        log.info.printf("virtio-vaccel: num_descs={}\n", .{num_descs});
+        const num_descs_not_notified = vq.not_notified_num_descs;
+        log.info.printf("virtio-vaccel: num_descs_not_notified={}\n", .{num_descs_not_notified});
         while (true) {
-            // wait for response
-            const used_chain = vq.popUsedOne();
-            if (used_chain != null){
-                break;
-            }
+            const used = vq.popUsed(null) catch @panic("popUsed failed");
+            if (used != null) break;
         }
+
         return status;
     }
 
@@ -304,7 +281,7 @@ pub fn init() void {
 
     const virtio_features = 1 << 32; // VIRTIO_F_VERSION_1
     const virtio = common.Virtio(VirtioVAccelDeviceConfig)
-        .new(&pci_dev, virtio_features, 2, mem.boottime_allocator.?) catch @panic("virtio-accel init failed");
+        .new(&pci_dev, virtio_features, 1, mem.boottime_allocator.?) catch @panic("virtio-accel init failed");
     const virtio_vaccel_slice = mem.boottime_allocator.?.alloc(VirtioVAccel, 1) catch @panic("virtio-accel alloc failed");
     virtio_vaccel = @as(*VirtioVAccel, @ptrCast(virtio_vaccel_slice.ptr));
     virtio_vaccel.* = VirtioVAccel.new(virtio);
@@ -316,5 +293,5 @@ pub fn init() void {
 fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
     log.debug.print("virtio-vaccel: interrupt\n");
-    virtio_vaccel.receive();
+    // TODO: handle interrupt
 }
