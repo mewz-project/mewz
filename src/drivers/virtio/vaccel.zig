@@ -102,6 +102,7 @@ const VirtioVAccel = struct {
                     .usr_npages = 0,
                     .padding = 0,
                 };
+                log.info.printf("virtio-vaccel: out_arg[{}]: len={}, buf={x}\n", .{i, arg.len, @intFromPtr(arg.buf)});
             }
             hdr.op.out = @as(u64, @intFromPtr(&out_meta_buf[0]));
         }

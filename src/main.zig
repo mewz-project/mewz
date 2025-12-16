@@ -49,7 +49,8 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
         virtio_net.init();
     }
     virtio_vaccel.init();
-    _ = vaccelrt.vaccel_session_init();
+    const session_id = vaccelrt.vaccel_session_init();
+    _ = vaccelrt.vaccel_no_op(session_id);
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {
