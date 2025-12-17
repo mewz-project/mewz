@@ -16,7 +16,9 @@ const tcpip = @import("tcpip.zig");
 const timer = @import("timer.zig");
 const util = @import("util.zig");
 const multiboot = @import("multiboot.zig");
+const vaccelrt = @import("vaccelrt.zig");
 const virtio_net = @import("drivers/virtio/net.zig");
+const virtio_vaccel = @import("drivers/virtio/vaccel.zig");
 const interrupt = @import("interrupt.zig");
 const x64 = @import("x64.zig");
 
@@ -45,6 +47,13 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
     log.debug.print("pci init finish\n");
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
+    }
+    if (options.enabled_vaccel){
+        log.debug.print("vaccel enabled\n");
+        virtio_vaccel.init();
+        // TODO: move to integrate test
+        const session_id = vaccelrt.vaccel_session_init();
+        _ = vaccelrt.vaccel_no_op(session_id);
     }
 
     mem.init2();
