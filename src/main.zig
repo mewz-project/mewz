@@ -48,9 +48,13 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
     }
-    virtio_vaccel.init();
-    const session_id = vaccelrt.vaccel_session_init();
-    _ = vaccelrt.vaccel_no_op(session_id);
+    if (options.enabled_vaccel){
+        log.debug.print("vaccel enabled\n");
+        virtio_vaccel.init();
+        // TODO: move to integrate test
+        const session_id = vaccelrt.vaccel_session_init();
+        _ = vaccelrt.vaccel_no_op(session_id);
+    }
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {

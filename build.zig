@@ -79,6 +79,12 @@ const BuildParams = struct {
             options.addOption(bool, "has_fs", false);
         }
 
+        if (self.qemu_vaccel) {
+            options.addOption(bool, "enabled_vaccel", true);
+        } else {
+            options.addOption(bool, "enabled_vaccel", false);
+        }
+
         return options;
     }
 };
