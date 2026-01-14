@@ -159,6 +159,7 @@ err_t connect_callback(void *arg, struct tcp_pcb *tpcb, err_t err) {
 
 struct tcp_pcb *lwip_new_tcp_pcb(u8_t type) {
   struct tcp_pcb *new_tcp_pcb = tcp_new_ip_type(type);
+  return new_tcp_pcb;
 }
 
 void lwip_set_fd(struct tcp_pcb *pcb, s32_t *fd_ptr) {
@@ -197,6 +198,10 @@ err_t lwip_connect(struct tcp_pcb *pcb, u8_t ip[4], int port) {
     return ERR_MEM;
   }
   IP4_ADDR(ipaddr, ip[0], ip[1], ip[2], ip[3]);
+  
+  tcp_recv(pcb, recv_callback);
+  tcp_err(pcb, error_callback);
+  
   return tcp_connect(pcb, ipaddr, port, connect_callback);
 }
 
