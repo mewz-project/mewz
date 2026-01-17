@@ -13,10 +13,6 @@ const Socket = tcpip.Socket;
 pub const Method = enum {
     GET,
     POST,
-    PUT,
-    DELETE,
-    PATCH,
-    HEAD,
 };
 
 pub const Header = struct {
@@ -33,19 +29,22 @@ pub const Request = struct {
     
     pub fn writeTo(self: *const Request, writer: anytype) !void {
         // Request line
-        try writer.print("{s} {s} HTTP/1.1\r\n", .{ methodToString(self.method), self.uri });
+        const method_str = switch (self.method) {
+            .GET => "GET",
+            .POST => "POST",
+        };
+        try writer.print("{s} {s} HTTP/1.1\r\n", .{ method_str, self.uri });
 
+        // Headers
         try writer.print("Host: {s}\r\n", .{self.host});
+        for (self.headers) |h| {
+            try writer.print("{s}: {s}\r\n", .{ h.name, h.value });
+        }
         try writer.writeAll("Connection: close\r\n"); // TODO: Support keep-alive
         
 
         if (self.body) |b| {
             try writer.print("Content-Length: {d}\r\n", .{b.len});
-        }
-
-        // User headers
-        for (self.headers) |h| {
-            try writer.print("{s}: {s}\r\n", .{ h.name, h.value });
         }
 
         // Header end
@@ -57,17 +56,6 @@ pub const Request = struct {
         }
     }
 };
-
-fn methodToString(m: Method) []const u8 {
-    return switch (m) {
-        .GET => "GET",
-        .POST => "POST",
-        .PUT => "PUT",
-        .DELETE => "DELETE",
-        .PATCH => "PATCH",
-        .HEAD => "HEAD",
-    };
-}
 
 pub const Client = struct {
 
@@ -104,14 +92,32 @@ pub const Client = struct {
 
         // Serialize HTTP request
         log.debug.printf("Serializing HTTP request...\n", .{});
+        log.debug.printf("request.body.len={d}\n", .{ if (req.body) |b| b.len else 0 });
         var buf: [4096]u8 = undefined;
         var fbs = std.io.fixedBufferStream(&buf);
-        try req.writeTo(fbs.writer());
+        const w = fbs.writer();
+
+        // try req.writeTo(w);
+        // Header
+        try w.print("POST {s} HTTP/1.1\r\n", .{req.uri});
+        try w.print("Host: {s}\r\n", .{req.host});
+        for (req.headers) |h| {
+            try w.print("{s}: {s}\r\n", .{ h.name, h.value });
+        }
+        const body = req.body orelse "";
+        try w.print("Content-Length: {d}\r\n", .{body.len});
+        try w.writeAll("Connection: close\r\n\r\n");
+        try sendAll(sock, fbs.getWritten());
+
+        // Body
+        if (req.body) |b| {
+            try sendAll(sock, b);
+        }
 
         // Send HTTP request
-        log.debug.printf("Sending HTTP request ({d} bytes)...\n", .{fbs.getWritten().len});
-        try sendAll(sock, fbs.getWritten());
-        log.debug.printf("---- REQUEST BEGIN ----\n{s}\n---- REQUEST END ----\n", .{fbs.getWritten()});
+        // log.debug.printf("Sending HTTP request ({d} bytes)...\n", .{fbs.getWritten().len});
+        // try sendAll(sock, fbs.getWritten());
+        // log.debug.printf("---- REQUEST BEGIN ----\n{s}\n---- REQUEST END ----\n", .{fbs.getWritten()});
 
         // Receive response
         log.debug.printf("Receiving HTTP response...\n", .{});
@@ -135,6 +141,7 @@ pub const Client = struct {
         
         // close
         try sock.close();
+        log.debug.printf("Socket closed. fd={d}\n", .{fd});
     }
 };
 
@@ -149,4 +156,37 @@ fn sendAll(sock: *Socket, data: []const u8) !void {
         };
         off += sent;
     }
+}
+
+pub fn testHTTPClientGET(uri: []const u8) !void {
+    var client = Client.init();
+
+    // Host IP in little-endian format:
+    // Host IP is 10.0.2.2 when using QEMU default user-mode networking
+    var ip = tcpip.IpAddr{ .addr = 0x0202000A };
+    const req = Request{
+        .method = .GET,
+        .host = "10.0.2.2",
+        .uri = uri,
+        .headers = &.{
+        },
+    };
+    try client.send(&ip, 8000, &req);
+}
+
+pub fn testHTTPClientPOST(uri: []const u8, body: []const u8) !void {
+    var client = Client.init();
+
+    // Host IP in little-endian format:
+    // Host IP is 10.0.2.2 when using QEMU default user-mode networking
+    var ip = tcpip.IpAddr{ .addr = 0x0202000A };
+    const req = Request{
+        .method = .POST,
+        .host = "10.0.2.2",
+        .uri = uri,
+        .headers = &.{
+        },
+        .body = body,
+    };
+    try client.send(&ip, 8000, &req);
 }

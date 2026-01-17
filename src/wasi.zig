@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const heap = @import("heap.zig");
 const fs = @import("fs.zig");
+const http_client = @import("http_client.zig");
 const log = @import("log.zig");
 const mem = @import("mem.zig");
 const poll = @import("poll.zig");
@@ -898,4 +899,25 @@ fn testClientSocket() bool {
     log.info.print("client socket test: sock_shutdown succeeded\n");
 
     return true;
+}
+
+pub export fn wasi_nn_get_stats() callconv(.c) WasiError {
+    log.debug.printf("WASI-NN get_stats\n", .{});
+    http_client.testHTTPClientGET("/v2/models/resnet/stats") catch |err| {
+        log.fatal.printf("testHTTPClientGET failed: {any}\n", .{err});
+        return WasiError.INVAL;
+    };
+    return WasiError.SUCCESS;
+}
+
+pub export fn wasi_nn_compute(json_addr: u32, json_size: u32) callconv(.c) WasiError {
+    log.debug.printf("WASI-NN compute\n", .{});
+    const addr = @as(usize, json_addr + linear_memory_offset);
+    const size = @as(usize, json_size);
+    const json_ptr = @as([*]u8, @ptrFromInt(addr))[0..size];
+    http_client.testHTTPClientPOST("/v2/models/resnet/infer", json_ptr) catch |err| {
+        log.fatal.printf("testHTTPClientPOST failed: {any}\n", .{err});
+        return WasiError.INVAL;
+    };
+    return WasiError.SUCCESS;
 }

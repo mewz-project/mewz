@@ -10,7 +10,7 @@ QEMU_ARGS=(
     "-cpu"
     "Icelake-Server"
     "-m"
-    "512"
+    "2048"
     "-device"
     "virtio-net,netdev=net0,disable-legacy=on,disable-modern=off"
     "-netdev"
