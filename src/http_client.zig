@@ -110,6 +110,7 @@ pub const Client = struct {
         }
 
         // Receive response
+        // TODO: asynchronous receive
         log.debug.printf("Receiving HTTP response...\n", .{});
         var tmp: [512]u8 = undefined;
         var total: usize = 0;
