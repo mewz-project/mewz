@@ -27,7 +27,7 @@ pub const Request = struct {
     headers: []const Header = &.{},
     body: ?[]const u8 = null,
     
-    pub fn writeTo(self: *const Request, writer: anytype) !void {
+    pub fn writeHeaders(self: *const Request, writer: anytype) !void {
         // Request line
         const method_str = switch (self.method) {
             .GET => "GET",
@@ -41,18 +41,11 @@ pub const Request = struct {
             try writer.print("{s}: {s}\r\n", .{ h.name, h.value });
         }
         try writer.writeAll("Connection: close\r\n"); // TODO: Support keep-alive
-        
-        if (self.body) |b| {
-            try writer.print("Content-Length: {d}\r\n", .{b.len});
-        }
 
-        // Header end
+        const body_len: usize = if (self.body) |b| b.len else 0;
+        try writer.print("Content-Length: {d}\r\n", .{body_len});
+
         try writer.writeAll("\r\n");
-
-        // Body
-        if (self.body) |b| {
-            try writer.writeAll(b);
-        }
     }
 };
 
@@ -97,8 +90,13 @@ pub const Client = struct {
         const w = fbs.writer();
         
         // Send request
-        try req.writeTo(w);
+        try req.writeHeaders(w);
         try sendAll(sock, fbs.getWritten());
+        
+        // Body
+        if (req.body) |b| {
+            try sendAll(sock, b);
+        }
 
         // Receive response
         log.debug.printf("Receiving HTTP response...\n", .{});
