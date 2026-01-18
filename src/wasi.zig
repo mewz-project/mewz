@@ -907,21 +907,25 @@ fn testClientSocket() bool {
 
 pub fn testHTTPClient() bool {
     @setRuntimeSafety(false);
-    
+
     log.info.printf("Starting HTTP client request...\n", .{});
     var client = http_client.Client.init();
 
-    // Host IP in little-endian format:
-    // Host IP is 10.0.2.2 when using QEMU default user-mode networking
-    var ip = tcpip.IpAddr{ .addr = 0x0202000A };
+    // Destination IP in little-endian format:
+    // example.com: 104.18.26.120
+    // TODO: use DNS to resolve domain names
+    var ip = tcpip.IpAddr{ .addr = 0x781a1268 };
     const req = http_client.Request{
         .method = .GET,
-        .host = "10.0.2.2",
         .uri = "/",
         .headers = &.{
+            http_client.Header{
+                .name = "Host",
+                .value = "example.com",
+            },
         },
     };
-    client.send(&ip, 8000, &req) catch {
+    client.send(&ip, 80, &req) catch {
         log.fatal.printf("HTTP client send failed\n", .{});
         return false;
     };

@@ -9,7 +9,6 @@ const IpAddr = tcpip.IpAddr;
 const Stream = stream.Stream;
 const Socket = tcpip.Socket;
 
-
 pub const Method = enum {
     GET,
     POST,
@@ -22,7 +21,6 @@ pub const Header = struct {
 
 pub const Request = struct {
     method: Method,
-    host: []const u8,
     uri: []const u8,
     headers: []const Header = &.{},
     body: ?[]const u8 = null,
@@ -33,7 +31,7 @@ pub const Request = struct {
         }
         return false;
     }
-    
+
     pub fn writeHeaders(self: *const Request, writer: anytype) !void {
         // Request line
         const method_str = switch (self.method) {
@@ -43,9 +41,6 @@ pub const Request = struct {
         try writer.print("{s} {s} HTTP/1.1\r\n", .{ method_str, self.uri });
 
         // Headers
-        if (!self.hasHeader("Host")) {
-            try writer.print("Host: {s}\r\n", .{self.host});
-        }
         if (!self.hasHeader("Connection")) {
             try writer.writeAll("Connection: close\r\n"); // TODO: Support keep-alive
         }
@@ -55,19 +50,18 @@ pub const Request = struct {
         if (self.body) |b| {
             try writer.print("Content-Length: {d}\r\n", .{b.len});
         }
-        
+
         try writer.writeAll("\r\n");
     }
 };
 
 pub const Client = struct {
-
     pub fn init() Client {
         return .{};
     }
 
     pub fn send(_: *Client, server_ip: *IpAddr, port: u16, req: *const Request) !void {
-        log.debug.printf("Connecting to {x}:{d}...\n", .{server_ip.addr, port});
+        log.debug.printf("Connecting to {x}:{d}...\n", .{ server_ip.addr, port });
 
         // Create socket
         const sock_tmp = try Socket.new(.INET4, heap.runtime_allocator);
@@ -92,7 +86,7 @@ pub const Client = struct {
             log.debug.printf("Socket closed. fd={d}\n", .{fd});
         }
         sock.setFd(fd);
-        
+
         // Connect
         log.debug.printf("Socket connecting...\n", .{});
         const ip_addr_ptr = @as(*anyopaque, server_ip);
@@ -101,15 +95,15 @@ pub const Client = struct {
         // Serialize HTTP request
         // TODO: avoid fixed-size buffer for large headers
         log.debug.printf("Serializing HTTP request...\n", .{});
-        log.debug.printf("request.body.len={d}\n", .{ if (req.body) |b| b.len else 0 });
+        log.debug.printf("request.body.len={d}\n", .{if (req.body) |b| b.len else 0});
         var buf: [4096]u8 = undefined;
         var fbs = std.io.fixedBufferStream(&buf);
         const w = fbs.writer();
-        
+
         // Send request
         try req.writeHeaders(w);
         try sendAll(sock, fbs.getWritten());
-        
+
         // Body
         if (req.body) |b| {
             try sendAll(sock, b);
@@ -131,11 +125,11 @@ pub const Client = struct {
             }
 
             total += n;
-            
+
             // Dump received data
             // TODO: return parsed response
             log.info.print(tmp[0..n]);
-        }    
+        }
     }
 };
 
