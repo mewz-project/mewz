@@ -75,6 +75,7 @@ pub const Client = struct {
             Stream.socket => &s.socket,
             else => @panic("fd_table entry is not a socket"),
         };
+        defer sock.close() catch {};
         sock.setFd(fd);
         
         // Connect
@@ -116,11 +117,7 @@ pub const Client = struct {
             total += n;
 
             log.info.print(tmp[0..n]);
-        }
-        
-        // close
-        try sock.close();
-        log.debug.printf("Socket closed. fd={d}\n", .{fd});
+        }    
     }
 };
 
