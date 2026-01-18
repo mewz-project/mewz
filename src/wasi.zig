@@ -917,7 +917,7 @@ pub fn testHTTPClient() bool {
     const req = http_client.Request{
         .method = .GET,
         .host = "10.0.2.2",
-        .uri = "/v2",
+        .uri = "/",
         .headers = &.{
         },
     };
