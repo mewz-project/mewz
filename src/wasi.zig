@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const heap = @import("heap.zig");
 const fs = @import("fs.zig");
+const http_client = @import("http_client.zig");
 const log = @import("log.zig");
 const mem = @import("mem.zig");
 const poll = @import("poll.zig");
@@ -653,6 +654,10 @@ pub fn integrationTest() void {
         return;
     }
 
+    if (!testHTTPClient()) {
+        return;
+    }
+
     log.fatal.print("Integration test passed\n");
 }
 
@@ -897,5 +902,29 @@ fn testClientSocket() bool {
     }
     log.info.print("client socket test: sock_shutdown succeeded\n");
 
+    return true;
+}
+
+pub fn testHTTPClient() bool {
+    @setRuntimeSafety(false);
+    
+    log.info.printf("Starting HTTP client request...\n", .{});
+    var client = http_client.Client.init();
+
+    // Host IP in little-endian format:
+    // Host IP is 10.0.2.2 when using QEMU default user-mode networking
+    var ip = tcpip.IpAddr{ .addr = 0x0202000A };
+    const req = http_client.Request{
+        .method = .GET,
+        .host = "10.0.2.2",
+        .uri = "/v2",
+        .headers = &.{
+        },
+    };
+    client.send(&ip, 8000, &req) catch {
+        log.fatal.printf("HTTP client send failed\n", .{});
+        return false;
+    };
+    log.info.printf("HTTP client send succeeded\n", .{});
     return true;
 }
