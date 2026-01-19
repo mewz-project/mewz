@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 
 const heap = @import("heap.zig");
 const fs = @import("fs.zig");
+const http_client = @import("http_client.zig");
 const log = @import("log.zig");
 const mem = @import("mem.zig");
 const poll = @import("poll.zig");
@@ -653,6 +654,10 @@ pub fn integrationTest() void {
         return;
     }
 
+    if (!testHTTPClient()) {
+        return;
+    }
+
     log.fatal.print("Integration test passed\n");
 }
 
@@ -897,5 +902,33 @@ fn testClientSocket() bool {
     }
     log.info.print("client socket test: sock_shutdown succeeded\n");
 
+    return true;
+}
+
+pub fn testHTTPClient() bool {
+    @setRuntimeSafety(false);
+
+    log.info.printf("Starting HTTP client request...\n", .{});
+    var client = http_client.Client.init();
+
+    // Destination IP in little-endian format:
+    // example.com: 104.18.26.120
+    // TODO: use DNS to resolve domain names
+    var ip = tcpip.IpAddr{ .addr = 0x781a1268 };
+    const req = http_client.Request{
+        .method = .GET,
+        .uri = "/",
+        .headers = &.{
+            http_client.Header{
+                .name = "Host",
+                .value = "example.com",
+            },
+        },
+    };
+    client.send(&ip, 80, &req) catch {
+        log.fatal.printf("HTTP client send failed\n", .{});
+        return false;
+    };
+    log.info.printf("HTTP client send succeeded\n", .{});
     return true;
 }
