@@ -14,6 +14,8 @@ const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
 const x64 = @import("x64.zig");
 
+const Client = http_client.Client;
+const Request = http_client.Request;
 const Stream = stream.Stream;
 const WasiError = types.WasiError;
 const ShutdownFlag = types.ShutdownFlag;
@@ -427,7 +429,7 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
     const recv_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(recv_len_addr)) + linear_memory_offset));
     const oflags_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(oflags_addr)) + linear_memory_offset));
 
-    log.debug.printf("WASI sock_recv: allocated buf len={d}\n", .{ buf.len });
+    log.debug.printf("WASI sock_recv: allocated buf len={d}\n", .{buf.len});
     const recv_len = socket.read(buf) catch |err| {
         switch (err) {
             tcpip.Socket.Error.Again => return WasiError.AGAIN,
@@ -913,14 +915,42 @@ pub export fn wasi_nn_get_stats() callconv(.c) WasiError {
     return WasiError.SUCCESS;
 }
 
-pub export fn wasi_nn_compute(json_addr: u32, json_size: u32) callconv(.c) WasiError {
-    log.debug.printf("WASI-NN compute\n", .{});
+pub export fn wasi_nn_compute(json_addr: u32, json_size: u32, output_buf_addr: u32, output_buf_size: u32) callconv(.c) WasiError {
+    var client = Client.init();
+
     const addr = @as(usize, json_addr + linear_memory_offset);
     const size = @as(usize, json_size);
     const json_ptr = @as([*]u8, @ptrFromInt(addr))[0..size];
-    http_client.testHTTPClientPOST("/v2/models/resnet/infer", json_ptr) catch |err| {
-        log.fatal.printf("testHTTPClientPOST failed: {any}\n", .{err});
+
+    // Host IP in little-endian format:
+    // Host IP is 10.0.2.2 when using QEMU default user-mode networking
+    var ip = tcpip.IpAddr{ .addr = 0x0202000A };
+    const req = Request{
+        .method = .POST,
+        .host = "10.0.2.2",
+        .uri = "/v2/models/resnet/infer",
+        .headers = &.{},
+        .body = json_ptr,
+    };
+    var res = client.send(&ip, 8000, &req) catch |err| {
+        log.fatal.printf("HTTP client send failed: {any}\n", .{err});
         return WasiError.INVAL;
     };
+    defer res.deinit(heap.runtime_allocator);
+
+
+    // copy response body to output buffer
+    const output_addr = @as(usize, output_buf_addr + linear_memory_offset);
+    const output_size = @as(usize, output_buf_size);
+    const output_buf = @as([*]u8, @ptrFromInt(output_addr))[0..output_size];
+    const copy_size = if (res.body.len < output_buf_size) res.body.len else output_buf_size;
+    @memcpy(output_buf[0..copy_size], res.body[0..copy_size]);
+    log.debug.printf("POST response:\n", .{});
+    log.debug.printf("  Response status: {d} {s}\n", .{ res.status_code, res.reason });
+    for (res.headers) |h| {
+        log.debug.printf("  Header: {s}: {s}\n", .{ h.name, h.value });
+    }
+    log.debug.printf("  Body ({d} bytes):\n", .{res.body.len});
+    log.debug.print(res.body);
     return WasiError.SUCCESS;
 }
