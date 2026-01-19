@@ -418,6 +418,7 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
         // fast path: avoid memory allocation and copy
         const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
         const len = @as(usize, @intCast(iovecs[0].buf_len));
+        log.debug.printf("WASI sock_recv: using fast path: linear_memory_offset: {x}, addr: {x}, len: {d}\n", .{ linear_memory_offset, addr, len });
         buf = @as([*]u8, @ptrFromInt(addr))[0..len];
     } else {
         buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
@@ -426,6 +427,7 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
     const recv_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(recv_len_addr)) + linear_memory_offset));
     const oflags_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(oflags_addr)) + linear_memory_offset));
 
+    log.debug.printf("WASI sock_recv: allocated buf len={d}\n", .{ buf.len });
     const recv_len = socket.read(buf) catch |err| {
         switch (err) {
             tcpip.Socket.Error.Again => return WasiError.AGAIN,
@@ -441,6 +443,7 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
     recv_len_ptr.* = @as(i32, @intCast(recv_len));
     oflags_ptr.* = 0;
 
+    log.debug.printf("WASI sock_recv: received {d} bytes\n", .{recv_len});
     return WasiError.SUCCESS;
 }
 

@@ -20,6 +20,11 @@ pub const Header = struct {
     value: []const u8,
 };
 
+pub const HeaderOwned = struct {
+    name: []u8,
+    value: []u8,
+};
+
 pub const Request = struct {
     method: Method,
     host: []const u8,
@@ -57,13 +62,84 @@ pub const Request = struct {
     }
 };
 
+pub const Response = struct {
+    status_code: u16,
+    reason: []u8,
+    headers: []HeaderOwned,
+    body: []const u8,
+
+    pub fn deinit(self: *Response, allocator: Allocator) void {
+        for (self.headers) |h| {
+            allocator.free(h.name);
+            allocator.free(h.value);
+        }
+        allocator.free(self.headers);
+        allocator.free(self.reason);
+        allocator.free(self.body);
+    }
+};
+
+fn parseHttpResponse(allocator: Allocator, raw: []const u8) !Response {
+    const sep = "\r\n\r\n";
+    const header_end = std.mem.indexOf(u8, raw, sep) orelse return error.BadHttpResponse;
+
+    const header_bytes = raw[0..header_end];
+    const body_bytes = raw[header_end + sep.len ..];
+
+    // Split lines
+    var it = std.mem.splitSequence(u8, header_bytes, "\r\n");
+    const status_line = it.next() orelse return error.BadHttpResponse;
+
+    // Parse status line
+    var sit = std.mem.splitScalar(u8, status_line, ' ');
+    _ = sit.next() orelse return error.BadHttpResponse; // HTTP version
+    const code_str = sit.next() orelse return error.BadHttpResponse;
+    const reason_rest = sit.rest(); // remaining as reason (may include spaces)
+
+    const status_code = try std.fmt.parseInt(u16, code_str, 10);
+    const reason = try allocator.dupe(u8, reason_rest);
+
+    // Parse headers
+    var headers_list: std.ArrayList(HeaderOwned) = .{};
+    errdefer {
+        for (headers_list.items) |h| {
+            allocator.free(h.name);
+            allocator.free(h.value);
+        }
+        headers_list.deinit(heap.runtime_allocator);
+        allocator.free(reason);
+    }
+
+    while (it.next()) |line| {
+        if (line.len == 0) continue;
+        const colon = std.mem.indexOfScalar(u8, line, ':') orelse continue;
+        const name = std.mem.trim(u8, line[0..colon], " \t");
+        const value = std.mem.trim(u8, line[colon+1..], " \t");
+        try headers_list.append(heap.runtime_allocator, .{
+            .name = try allocator.dupe(u8, name),
+            .value = try allocator.dupe(u8, value),
+        });
+    }
+
+    const headers_owned = try headers_list.toOwnedSlice(heap.runtime_allocator);
+    const body_owned = try allocator.dupe(u8, body_bytes);
+
+    return Response{
+        .status_code = status_code,
+        .reason = reason,
+        .headers = headers_owned,
+        .body = body_owned,
+    };
+}
+
+
 pub const Client = struct {
 
     pub fn init() Client {
         return .{};
     }
 
-    pub fn send(_: *Client, server_ip: *IpAddr, port: u16, req: *const Request) !void {
+    pub fn send(_: *Client, server_ip: *IpAddr, port: u16, req: *const Request) !Response {
         log.debug.printf("Connecting to {x}:{d}...\n", .{server_ip.addr, port});
 
         // Create socket
@@ -114,13 +190,11 @@ pub const Client = struct {
             try sendAll(sock, b);
         }
 
-        // Send HTTP request
-        // log.debug.printf("Sending HTTP request ({d} bytes)...\n", .{fbs.getWritten().len});
-        // try sendAll(sock, fbs.getWritten());
-        // log.debug.printf("---- REQUEST BEGIN ----\n{s}\n---- REQUEST END ----\n", .{fbs.getWritten()});
-
         // Receive response
         log.debug.printf("Receiving HTTP response...\n", .{});
+        var recv_buf: std.ArrayList(u8) = .{};
+        errdefer recv_buf.deinit(heap.runtime_allocator);
+        
         var tmp: [512]u8 = undefined;
         var total: usize = 0;
         while (true) {
@@ -135,13 +209,19 @@ pub const Client = struct {
             }
 
             total += n;
-
-            log.info.print(tmp[0..n]);
+            try recv_buf.appendSlice(heap.runtime_allocator, tmp[0..n]);
+            // log.info.print(tmp[0..n]);
         }
+
+        // Parse HTTP response
+        const raw = recv_buf.items;
+        const response = try parseHttpResponse(heap.runtime_allocator, raw);
         
         // close
         try sock.close();
         log.debug.printf("Socket closed. fd={d}\n", .{fd});
+
+        return response;
     }
 };
 
@@ -171,7 +251,15 @@ pub fn testHTTPClientGET(uri: []const u8) !void {
         .headers = &.{
         },
     };
-    try client.send(&ip, 8000, &req);
+    var res = try client.send(&ip, 8000, &req);
+    defer res.deinit(heap.runtime_allocator);
+
+    log.debug.printf("GET response:\n", .{});
+    log.debug.printf("  Response status: {d} {s}\n", .{ res.status_code, res.reason });
+    for (res.headers) |h| {
+        log.debug.printf("  Header: {s}: {s}\n", .{ h.name, h.value });
+    }
+    log.debug.printf("  Body ({d} bytes):\n{s}\n", .{ res.body.len, res.body });
 }
 
 pub fn testHTTPClientPOST(uri: []const u8, body: []const u8) !void {
@@ -188,5 +276,14 @@ pub fn testHTTPClientPOST(uri: []const u8, body: []const u8) !void {
         },
         .body = body,
     };
-    try client.send(&ip, 8000, &req);
+    var res = try client.send(&ip, 8000, &req);
+    defer res.deinit(heap.runtime_allocator);
+
+    log.debug.printf("POST response:\n", .{});
+    log.debug.printf("  Response status: {d} {s}\n", .{ res.status_code, res.reason });
+    for (res.headers) |h| {
+        log.debug.printf("  Header: {s}: {s}\n", .{ h.name, h.value });
+    }
+    log.debug.printf("  Body ({d} bytes):\n", .{ res.body.len });
+    log.debug.print(res.body);
 }
