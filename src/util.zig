@@ -36,8 +36,9 @@ pub const RingBuffer = struct {
         const read_size = @min(data.len, self.availableToRead());
 
         const first_read_len = @min(read_size, self.buffer.len - read_index);
+        const second_read_len = read_size - first_read_len;
         @memcpy(data[0..first_read_len], self.buffer[read_index..][0..first_read_len]);
-        @memcpy(data[first_read_len..], self.buffer[0..][0 .. data.len - first_read_len]);
+        @memcpy(data[first_read_len..read_size], self.buffer[0..][0 .. second_read_len]);
 
         self.read_index = self.mask2(self.read_index + read_size);
 
