@@ -107,64 +107,44 @@ interrupt_common:
 
     mov rsi, rsp
 
-    sub    rsp,0x138
-    movaps XMMWORD PTR [rsp+0x120],xmm15
-    movaps XMMWORD PTR [rsp+0x110],xmm14
-    movaps XMMWORD PTR [rsp+0x100],xmm13
-    movaps XMMWORD PTR [rsp+0xf0],xmm12
+    // Use rbp as frame pointer to restore rsp later.
+    // (rbp's original value is already saved in the push sequence above.)
+    mov rbp, rsp
+    and rsp, -64              // Align stack to 64 bytes (required by XSAVE)
+    sub rsp, 0xC00            // Allocate 3072 bytes for XSAVE area
 
-    movaps XMMWORD PTR [rsp+0xe0],xmm11
+    // Zero the XSAVE header before XSAVE.
+    // XSAVE writes XSTATE_BV (bytes 512-519) and XCOMP_BV (bytes 520-527),
+    // but does NOT clear the reserved area (bytes 528-575).
+    // XRSTOR will #GP if those reserved bytes are non-zero.
+    mov qword ptr [rsp+0x200], 0
+    mov qword ptr [rsp+0x208], 0
+    mov qword ptr [rsp+0x210], 0
+    mov qword ptr [rsp+0x218], 0
+    mov qword ptr [rsp+0x220], 0
+    mov qword ptr [rsp+0x228], 0
+    mov qword ptr [rsp+0x230], 0
+    mov qword ptr [rsp+0x238], 0
 
-    movaps XMMWORD PTR [rsp+0xd0],xmm10
+    // Save all extended state (X87, SSE, AVX, AVX-512) via XSAVE
+    mov edx, 0xFFFFFFFF
+    mov eax, 0xFFFFFFFF
+    xsave64 [rsp]
 
-    movaps XMMWORD PTR [rsp+0xc0],xmm9
-
-    movaps XMMWORD PTR [rsp+0xb0],xmm8
-
-    movaps XMMWORD PTR [rsp+0xa0],xmm7
-    movaps XMMWORD PTR [rsp+0x90],xmm6
-    movaps XMMWORD PTR [rsp+0x80],xmm5
-    movaps XMMWORD PTR [rsp+0x70],xmm4
-    movaps XMMWORD PTR [rsp+0x60],xmm3
-    movaps XMMWORD PTR [rsp+0x50],xmm2
-    movaps XMMWORD PTR [rsp+0x40],xmm1
-    movaps XMMWORD PTR [rsp+0x30],xmm0
     cld
-    xorps  xmm0,xmm0
-    movaps XMMWORD PTR [rsp],xmm0
-    movaps XMMWORD PTR [rsp+0x10],xmm0
-    mov    QWORD PTR [rsp+0x20],0x0
-
-    mov    DWORD PTR [rsp],0x0
-
     call commonInterruptHandler
 
-    mov    eax,0xfee000b0
-    mov    QWORD PTR [rsp],rax
-    mov    rax,QWORD PTR [rsp]
-    mov    DWORD PTR [rax],0x0
-    movaps xmm0,XMMWORD PTR [rsp+0x30]
-    movaps xmm1,XMMWORD PTR [rsp+0x40]
-    movaps xmm2,XMMWORD PTR [rsp+0x50]
-    movaps xmm3,XMMWORD PTR [rsp+0x60]
-    movaps xmm4,XMMWORD PTR [rsp+0x70]
-    movaps xmm5,XMMWORD PTR [rsp+0x80]
-    movaps xmm6,XMMWORD PTR [rsp+0x90]
-    movaps xmm7,XMMWORD PTR [rsp+0xa0]
-    movaps xmm8,XMMWORD PTR [rsp+0xb0]
+    // Send LAPIC End-of-Interrupt
+    mov eax, 0xfee000b0
+    mov dword ptr [rax], 0
 
-    movaps xmm9,XMMWORD PTR [rsp+0xc0]
+    // Restore all extended state via XRSTOR
+    mov edx, 0xFFFFFFFF
+    mov eax, 0xFFFFFFFF
+    xrstor64 [rsp]
 
-    movaps xmm10,XMMWORD PTR [rsp+0xd0]
-
-    movaps xmm11,XMMWORD PTR [rsp+0xe0]
-
-    movaps xmm12,XMMWORD PTR [rsp+0xf0]
-
-    movaps xmm13,XMMWORD PTR [rsp+0x100]
-    movaps xmm14,XMMWORD PTR [rsp+0x110]
-    movaps xmm15,XMMWORD PTR [rsp+0x120]
-    add    rsp,0x138
+    // Restore stack pointer
+    mov rsp, rbp
 
     pop rax
     pop rbx
