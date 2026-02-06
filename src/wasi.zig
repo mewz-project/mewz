@@ -906,51 +906,239 @@ fn testClientSocket() bool {
     return true;
 }
 
-pub export fn wasi_nn_get_stats() callconv(.c) WasiError {
-    log.debug.printf("WASI-NN get_stats\n", .{});
-    http_client.testHTTPClientGET("/v2/models/resnet/stats") catch |err| {
-        log.fatal.printf("testHTTPClientGET failed: {any}\n", .{err});
-        return WasiError.INVAL;
-    };
-    return WasiError.SUCCESS;
+// ---------------------------------------------------------------------------
+// wasi-nn implementation
+// ---------------------------------------------------------------------------
+
+// wasi-nn error codes (from wasi-nn WITX spec)
+const NN_ERRNO_SUCCESS: i32 = 0;
+const NN_ERRNO_INVALID_ARGUMENT: i32 = 1;
+const NN_ERRNO_INVALID_ENCODING: i32 = 2;
+const NN_ERRNO_MISSING_MEMORY: i32 = 3;
+const NN_ERRNO_BUSY: i32 = 4;
+const NN_ERRNO_RUNTIME_ERROR: i32 = 5;
+const NN_ERRNO_UNSUPPORTED_OPERATION: i32 = 6;
+const NN_ERRNO_TOO_LARGE: i32 = 7;
+const NN_ERRNO_NOT_FOUND: i32 = 8;
+
+// Tensor struct layout in linear memory (WITX ABI)
+//   offset  0: dimensions_ptr (u32)  -- pointer to list of u32 dimension values
+//   offset  4: dimensions_len (u32)  -- number of dimensions
+//   offset  8: tensor_type   (u8)    -- element type enum
+//   offset  9: (3 bytes padding)
+//   offset 12: data_ptr      (u32)   -- pointer to tensor data bytes
+//   offset 16: data_len      (u32)   -- length of tensor data in bytes
+const WasiNnTensor = extern struct {
+    dimensions_ptr: u32,
+    dimensions_len: u32,
+    tensor_type: u8,
+    _pad1: u8 = 0,
+    _pad2: u8 = 0,
+    _pad3: u8 = 0,
+    data_ptr: u32,
+    data_len: u32,
+};
+
+// wasi-nn global state (single graph / single context – sufficient for a unikernel)
+var nn_model_name_buf: [256]u8 = undefined;
+var nn_model_name_len: usize = 0;
+var nn_graph_active: bool = false;
+
+var nn_ctx_active: bool = false;
+var nn_ctx_input_data_addr: u32 = 0;
+var nn_ctx_input_data_len: u32 = 0;
+var nn_ctx_output_data: ?[]const u8 = null;
+
+/// load: Load a graph from an opaque sequence of bytes.
+///   arg0 (builder_ptr):      pointer to graph_builder_array (list<list<u8>>)
+///   arg1 (builder_len):      number of builders in the array
+///   arg2 (encoding):         graph_encoding enum value
+///   arg3 (target):           execution_target enum value
+///   arg4 (graph_result_ptr): pointer to store the resulting graph handle
+///   returns: nn_errno
+pub export fn load(builder_ptr: i32, builder_len: i32, encoding: i32, target: i32, graph_result_ptr: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN load: builder_ptr={d} builder_len={d} encoding={d} target={d} graph_result_ptr={d}\n", .{ builder_ptr, builder_len, encoding, target, graph_result_ptr });
+
+    // No-op: store a dummy graph handle (0)
+    const result_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(graph_result_ptr)) + linear_memory_offset));
+    result_ptr.* = 0;
+
+    return NN_ERRNO_SUCCESS;
 }
 
-pub export fn wasi_nn_compute(json_addr: u32, json_size: u32, output_buf_addr: u32, output_buf_size: u32) callconv(.c) WasiError {
-    var client = Client.init();
+/// load_by_name: Load a graph by name.
+///   arg0 (name_ptr):         pointer to name string (e.g. model name such as "resnet")
+///   arg1 (name_len):         length of name string
+///   arg2 (graph_result_ptr): pointer to store the resulting graph handle
+///   returns: nn_errno
+pub export fn load_by_name(name_ptr: i32, name_len: i32, graph_result_ptr: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN load_by_name: name_ptr={d} name_len={d} graph_result_ptr={d}\n", .{ name_ptr, name_len, graph_result_ptr });
 
-    const addr = @as(usize, json_addr + linear_memory_offset);
-    const size = @as(usize, json_size);
-    const json_ptr = @as([*]u8, @ptrFromInt(addr))[0..size];
+    const len = @as(usize, @intCast(name_len));
+    if (len > nn_model_name_buf.len) {
+        log.debug.printf("WASI-NN load_by_name: name too long ({d} > {d})\n", .{ len, nn_model_name_buf.len });
+        return NN_ERRNO_INVALID_ARGUMENT;
+    }
 
-    // Host IP in little-endian format:
+    const name = @as([*]const u8, @ptrFromInt(@as(usize, @intCast(name_ptr)) + linear_memory_offset))[0..len];
+    @memcpy(nn_model_name_buf[0..len], name);
+    nn_model_name_len = len;
+    nn_graph_active = true;
+
+    log.debug.printf("WASI-NN load_by_name: loaded model \"{s}\"\n", .{nn_model_name_buf[0..nn_model_name_len]});
+
+    // Return graph handle 0
+    const result_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(graph_result_ptr)) + linear_memory_offset));
+    result_ptr.* = 0;
+
+    return NN_ERRNO_SUCCESS;
+}
+
+/// init_execution_context: Create an execution context for a graph.
+///   arg0 (graph):              graph handle
+///   arg1 (context_result_ptr): pointer to store the resulting execution context handle
+///   returns: nn_errno
+pub export fn init_execution_context(graph: i32, context_result_ptr: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN init_execution_context: graph={d} context_result_ptr={d}\n", .{ graph, context_result_ptr });
+
+    if (!nn_graph_active) {
+        log.debug.printf("WASI-NN init_execution_context: no graph loaded\n", .{});
+        return NN_ERRNO_INVALID_ARGUMENT;
+    }
+
+    // Reset context state
+    nn_ctx_active = true;
+    nn_ctx_input_data_addr = 0;
+    nn_ctx_input_data_len = 0;
+    if (nn_ctx_output_data) |data| {
+        heap.runtime_allocator.free(data);
+        nn_ctx_output_data = null;
+    }
+
+    // Return context handle 0
+    const result_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(context_result_ptr)) + linear_memory_offset));
+    result_ptr.* = 0;
+
+    return NN_ERRNO_SUCCESS;
+}
+
+/// set_input: Set input tensor for an execution context.
+///   arg0 (context):    execution context handle
+///   arg1 (index):      input tensor index
+///   arg2 (tensor_ptr): pointer to tensor struct in linear memory (WasiNnTensor layout)
+///   returns: nn_errno
+pub export fn set_input(context: i32, index: i32, tensor_ptr: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN set_input: context={d} index={d} tensor_ptr={d}\n", .{ context, index, tensor_ptr });
+
+    if (!nn_ctx_active) {
+        log.debug.printf("WASI-NN set_input: no active context\n", .{});
+        return NN_ERRNO_INVALID_ARGUMENT;
+    }
+
+    // Read tensor struct from linear memory
+    const tensor = @as(*const WasiNnTensor, @ptrFromInt(@as(usize, @intCast(tensor_ptr)) + linear_memory_offset));
+
+    nn_ctx_input_data_addr = tensor.data_ptr;
+    nn_ctx_input_data_len = tensor.data_len;
+
+    log.debug.printf("WASI-NN set_input: index={d} data_ptr={d} data_len={d} tensor_type={d}\n", .{ index, tensor.data_ptr, tensor.data_len, tensor.tensor_type });
+
+    return NN_ERRNO_SUCCESS;
+}
+
+/// compute: Compute inference on the given execution context.
+///   Sends the input tensor data via HTTP POST to the Triton inference server
+///   at /v2/models/{model_name}/infer and stores the response for get_output.
+///   arg0 (context): execution context handle
+///   returns: nn_errno
+pub export fn compute(context: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN compute: context={d}\n", .{context});
+
+    if (!nn_ctx_active) {
+        log.debug.printf("WASI-NN compute: no active context\n", .{});
+        return NN_ERRNO_INVALID_ARGUMENT;
+    }
+
+    // Free previous output if any
+    if (nn_ctx_output_data) |data| {
+        heap.runtime_allocator.free(data);
+        nn_ctx_output_data = null;
+    }
+
+    // Get input data from linear memory
+    const input_data = @as([*]const u8, @ptrFromInt(@as(usize, nn_ctx_input_data_addr) + linear_memory_offset))[0..@as(usize, nn_ctx_input_data_len)];
+
+    // Build URI: /v2/models/{model_name}/infer
+    var uri_buf: [512]u8 = undefined;
+    const uri = std.fmt.bufPrint(&uri_buf, "/v2/models/{s}/infer", .{nn_model_name_buf[0..nn_model_name_len]}) catch {
+        log.debug.printf("WASI-NN compute: URI too long\n", .{});
+        return NN_ERRNO_INVALID_ARGUMENT;
+    };
+
+    // Send HTTP POST to the Triton inference server
     // Host IP is 10.0.2.2 when using QEMU default user-mode networking
+    var client = Client.init();
     var ip = tcpip.IpAddr{ .addr = 0x0202000A };
     const req = Request{
         .method = .POST,
         .host = "10.0.2.2",
-        .uri = "/v2/models/resnet/infer",
+        .uri = uri,
         .headers = &.{},
-        .body = json_ptr,
+        .body = input_data,
     };
+
     var res = client.send(&ip, 8000, &req) catch |err| {
-        log.fatal.printf("HTTP client send failed: {any}\n", .{err});
-        return WasiError.INVAL;
+        log.fatal.printf("WASI-NN compute: HTTP client send failed: {any}\n", .{err});
+        return NN_ERRNO_RUNTIME_ERROR;
     };
     defer res.deinit(heap.runtime_allocator);
 
+    log.debug.printf("WASI-NN compute: response status={d} {s}\n", .{ res.status_code, res.reason });
+    log.debug.printf("WASI-NN compute: response body ({d} bytes)\n", .{res.body.len});
 
-    // copy response body to output buffer
-    const output_addr = @as(usize, output_buf_addr + linear_memory_offset);
-    const output_size = @as(usize, output_buf_size);
-    const output_buf = @as([*]u8, @ptrFromInt(output_addr))[0..output_size];
-    const copy_size = if (res.body.len < output_buf_size) res.body.len else output_buf_size;
-    @memcpy(output_buf[0..copy_size], res.body[0..copy_size]);
-    log.debug.printf("POST response:\n", .{});
-    log.debug.printf("  Response status: {d} {s}\n", .{ res.status_code, res.reason });
-    for (res.headers) |h| {
-        log.debug.printf("  Header: {s}: {s}\n", .{ h.name, h.value });
+    // Copy response body to persistent storage for get_output
+    const output = heap.runtime_allocator.alloc(u8, res.body.len) catch {
+        log.fatal.printf("WASI-NN compute: failed to allocate output buffer\n", .{});
+        return NN_ERRNO_MISSING_MEMORY;
+    };
+    @memcpy(output, res.body);
+    nn_ctx_output_data = output;
+
+    return NN_ERRNO_SUCCESS;
+}
+
+/// get_output: Get output tensor data from an execution context after compute.
+///   Copies the inference response data into the caller-provided buffer.
+///   arg0 (context):             execution context handle
+///   arg1 (index):               output tensor index
+///   arg2 (out_buffer_ptr):      pointer to output buffer in linear memory
+///   arg3 (out_buffer_max_size): maximum size of output buffer in bytes
+///   arg4 (bytes_written_ptr):   pointer to store actual bytes written (u32)
+///   returns: nn_errno
+pub export fn get_output(context: i32, index: i32, out_buffer_ptr: i32, out_buffer_max_size: i32, bytes_written_ptr: i32) callconv(.c) i32 {
+    log.debug.printf("WASI-NN get_output: context={d} index={d} out_buffer_ptr={d} out_buffer_max_size={d} bytes_written_ptr={d}\n", .{ context, index, out_buffer_ptr, out_buffer_max_size, bytes_written_ptr });
+
+    if (!nn_ctx_active) {
+        log.debug.printf("WASI-NN get_output: no active context\n", .{});
+        return NN_ERRNO_INVALID_ARGUMENT;
     }
-    log.debug.printf("  Body ({d} bytes):\n", .{res.body.len});
-    log.debug.print(res.body);
-    return WasiError.SUCCESS;
+
+    const written_ptr = @as(*u32, @ptrFromInt(@as(usize, @intCast(bytes_written_ptr)) + linear_memory_offset));
+
+    const output_data = nn_ctx_output_data orelse {
+        log.debug.printf("WASI-NN get_output: no output available (compute not called?)\n", .{});
+        written_ptr.* = 0;
+        return NN_ERRNO_SUCCESS;
+    };
+
+    const max_size = @as(usize, @intCast(out_buffer_max_size));
+    const copy_size = @min(output_data.len, max_size);
+    const out_buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(out_buffer_ptr)) + linear_memory_offset))[0..copy_size];
+    @memcpy(out_buf, output_data[0..copy_size]);
+
+    written_ptr.* = @as(u32, @intCast(copy_size));
+
+    log.debug.printf("WASI-NN get_output: copied {d} bytes (available={d}, max={d})\n", .{ copy_size, output_data.len, max_size });
+
+    return NN_ERRNO_SUCCESS;
 }
