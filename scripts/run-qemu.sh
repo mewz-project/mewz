@@ -52,6 +52,10 @@ if $DEBUG; then
     QEMU_ARGS+=("-S")
 fi
 
+if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+    QEMU_ARGS+=("-accel" "kvm")
+fi
+
 # Let x be the return code of Mewz. Then, the return code of QEMU is 2x+1.
 qemu-system-x86_64 "${QEMU_ARGS[@]}" || QEMU_RETURN_CODE=$(( $? ))
 RETURN_CODE=$(( (QEMU_RETURN_CODE-1)/2 ))

@@ -149,17 +149,37 @@ fn enableSSE() void {
 }
 
 fn enableAVX() void {
+    // Enable AVX and AVX-512 state in XCR0:
+    //   Bit 0: X87 FPU
+    //   Bit 1: SSE (XMM)
+    //   Bit 2: AVX (YMM upper 128-bit)
+    //   Bit 5: Opmask (k0-k7)
+    //   Bit 6: ZMM_Hi256 (upper 256-bit of ZMM0-15)
+    //   Bit 7: Hi16_ZMM (full ZMM16-31)
     asm volatile (
         \\.intel_syntax noprefix
         \\push rax
+        \\push rbx
         \\push rcx
         \\push rdx
-        \\xor rcx, rcx
+        \\
+        \\ // Query CPU-supported XCR0 bits via CPUID leaf 0Dh
+        \\mov eax, 0x0d
+        \\xor ecx, ecx
+        \\cpuid
+        \\mov ebx, eax
+        \\
+        \\ // Read current XCR0
+        \\xor ecx, ecx
         \\xgetbv
-        \\or eax, 7
+        \\ // Set desired bits, masked by CPU-supported bits
+        \\and ebx, 0xe7
+        \\or eax, ebx
         \\xsetbv
+        \\
         \\pop rdx
         \\pop rcx
+        \\pop rbx
         \\pop rax
     );
 }
