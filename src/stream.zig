@@ -125,7 +125,7 @@ pub const Stream = union(enum) {
     pub fn setFlags(self: *Self, f: u16) void {
         switch (self.*) {
             Self.uart => {
-                log.warn("set flags on uart unimplemented");
+                log.warn.printf("set flags on uart unimplemented\n", .{});
             },
             Self.socket => |*sock| sock.*.flags |= f,
             Self.opened_file => @panic("set flags on opened_file unimplemented"),
