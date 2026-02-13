@@ -29,8 +29,6 @@ QEMU_ARGS=(
     "isa-debug-exit,iobase=0x501,iosize=2"
     "-append"
     "ip=10.0.2.15/24 gateway=10.0.2.2"
-    "-accel"
-    "kvm"
 )
 
 DEBUG=false
@@ -52,6 +50,10 @@ done
 
 if $DEBUG; then
     QEMU_ARGS+=("-S")
+fi
+
+if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+    QEMU_ARGS+=("-accel" "kvm")
 fi
 
 # Let x be the return code of Mewz. Then, the return code of QEMU is 2x+1.
