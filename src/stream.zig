@@ -88,10 +88,10 @@ pub const Stream = union(enum) {
 
     pub fn read(self: *Self, buffer: []u8) Error!usize {
         return switch (self.*) {
-            Self.uart => @panic("unimplemented"),
+            Self.uart => @panic("read on uart unimplemented"),
             Self.socket => |*sock| sock.read(buffer),
             Self.opened_file => |*f| f.read(buffer),
-            Self.dir => @panic("unimplemented"),
+            Self.dir => @panic("read on dir unimplemented"),
         };
     }
 
@@ -99,14 +99,14 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => uart.write(buffer),
             Self.socket => |*sock| sock.send(buffer),
-            Self.opened_file => @panic("unimplemented"),
-            Self.dir => @panic("unimplemented"),
+            Self.opened_file => @panic("write on opened_file unimplemented"),
+            Self.dir => @panic("write on dir unimplemented"),
         };
     }
 
     pub fn close(self: *Self) Error!void {
         return switch (self.*) {
-            Self.uart => @panic("unimplemented"),
+            Self.uart => @panic("close on uart unimplemented"),
             Self.socket => |*sock| sock.close(),
             Self.opened_file => {},
             Self.dir => {},
@@ -124,10 +124,12 @@ pub const Stream = union(enum) {
 
     pub fn setFlags(self: *Self, f: u16) void {
         switch (self.*) {
-            Self.uart => @panic("unimplemented"),
+            Self.uart => {
+                log.warn("set flags on uart unimplemented");
+            },
             Self.socket => |*sock| sock.*.flags |= f,
-            Self.opened_file => @panic("unimplemented"),
-            Self.dir => @panic("unimplemented"),
+            Self.opened_file => @panic("set flags on opened_file unimplemented"),
+            Self.dir => @panic("set flags on dir unimplemented"),
         }
     }
 
