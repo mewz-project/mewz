@@ -61,6 +61,15 @@ pub export fn environ_get(env_addrs: i32, env_buf_addr: i32) WasiError {
     return WasiError.SUCCESS;
 }
 
+// argv_addrs: a pointer to an array of pointers to each argument string, each null-terminated
+// argv_buf_addr: a pointer to a buffer that will be filled with the argument strings
+pub export fn args_get(argv_addrs: i32, argv_buf_addr: i32) WasiError {
+    log.debug.printf("WASI args_get: {d} {d}\n", .{ argv_addrs, argv_buf_addr });
+
+    // Empty args: nothing to write.
+    return WasiError.SUCCESS;
+}
+
 // env_count_addr: a pointer to an integer that will be filled with the number of environment variables
 // env_buf_size_addr: a pointer to an integer that will be filled with the size of the buffer needed to hold all environment variables
 pub export fn environ_sizes_get(env_count_addr: i32, env_buf_size_addr: i32) WasiError {
@@ -70,6 +79,19 @@ pub export fn environ_sizes_get(env_count_addr: i32, env_buf_size_addr: i32) Was
 
     env_count_ptr.* = 0;
     env_buf_size_ptr.* = 0;
+
+    return WasiError.SUCCESS;
+}
+
+// argc_addr: a pointer to an integer that will be filled with the number of arguments
+// argv_buf_size_addr: a pointer to an integer that will be filled with the total buffer size needed
+pub export fn args_sizes_get(argc_addr: i32, argv_buf_size_addr: i32) WasiError {
+    log.debug.printf("WASI args_sizes_get: {d} {d}\n", .{ argc_addr, argv_buf_size_addr });
+    const argc_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argc_addr)) + linear_memory_offset));
+    const argv_buf_size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argv_buf_size_addr)) + linear_memory_offset));
+
+    argc_ptr.* = 0;
+    argv_buf_size_ptr.* = 0;
 
     return WasiError.SUCCESS;
 }
