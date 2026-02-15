@@ -145,7 +145,7 @@ fn enableSSE() void {
         \\mov rax, cr4
         \\or rax, 643 << 9
         \\mov cr4, rax
-    );
+        ::: .{ .rax = true });
 }
 
 fn enableAVX() void {
