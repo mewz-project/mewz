@@ -43,6 +43,7 @@ const BuildParams = struct {
         if (test_option) |t| {
             params.is_test = t;
             if (t) {
+                createTestDir(b) catch unreachable;
                 params.dir_path = TEST_DIR_PATH;
             }
         } else {
@@ -125,14 +126,6 @@ pub fn build(b: *Build) !void {
     kernel.step.dependOn(&newlib_build_cmd.step);
     kernel.step.dependOn(&lwip_build_cmd.step);
     if (params.dir_path) |p| {
-        if (params.is_test) {
-            const prepare_test_dir = b.addSystemCommand(&[_][]const u8{
-                "bash",
-                "-lc",
-                "mkdir -p build/test && printf 'fd_read test\\n' > build/test/test.txt",
-            });
-            kernel.step.dependOn(&prepare_test_dir.step);
-        }
         const fs_build_cmd = b.addSystemCommand(&[_][]const u8{ "./scripts/build-fs.sh", p });
         kernel.step.dependOn(&fs_build_cmd.step);
     }
@@ -161,4 +154,13 @@ pub fn build(b: *Build) !void {
 
     const debug_step = b.step("debug", "Debug the kernel");
     debug_step.dependOn(&debug_cmd.step);
+}
+
+fn createTestDir(b: *Build) !void {
+    const io = b.graph.io;
+    const cwd: std.Io.Dir = .cwd();
+    cwd.createDirPath(io, TEST_DIR_PATH) catch {};
+    var file = try cwd.createFile(io, TEST_DIR_PATH ++ "/test.txt", .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, "fd_read test\n");
 }
