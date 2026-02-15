@@ -14,11 +14,16 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
     }
     panicked = true;
 
-    var it = std.debug.StackIterator.init(@returnAddress(), null);
-    var ix: usize = 0;
     log.fatal.printf("Stack Trace:\n", .{});
-    while (it.next()) |frame| : (ix += 1) {
-        log.fatal.printf("#{d:0>2}: 0x{X:0>16}\n", .{ ix, frame });
+    var ix: usize = 0;
+    var fp: ?[*]const usize = @ptrFromInt(@frameAddress());
+    while (fp) |frame_ptr| : (ix += 1) {
+        const ret_addr = frame_ptr[1];
+        if (ret_addr == 0) break;
+        log.fatal.printf("#{d:0>2}: 0x{X:0>16}\n", .{ ix, ret_addr });
+        const next = frame_ptr[0];
+        if (next == 0) break;
+        fp = @ptrFromInt(next);
     }
 
     asm volatile ("hlt");

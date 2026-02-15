@@ -422,7 +422,7 @@ pub const DeviceStatus = enum(u8) {
     }
 };
 
-pub const VirtioCommonConfig = packed struct {
+pub const VirtioCommonConfig = extern struct {
     device_feature_select: u32,
     device_feature: u32,
     driver_feature_select: u32,
@@ -444,9 +444,7 @@ pub const VirtioCommonConfig = packed struct {
 };
 
 pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
-    // FIXME: volatile pointer of packed struct doesn't work?
-    // https://ziglang.org/documentation/master/#toc-packed-struct
-    return packed struct {
+    return extern struct {
         common_config: *volatile VirtioCommonConfig,
         device_config: *volatile DeviceConfigType,
         notify: usize,
