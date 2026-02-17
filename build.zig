@@ -43,7 +43,7 @@ const BuildParams = struct {
         if (test_option) |t| {
             params.is_test = t;
             if (t) {
-                createTestDir() catch unreachable;
+                createTestDir(b) catch unreachable;
                 params.dir_path = TEST_DIR_PATH;
             }
         } else {
@@ -104,19 +104,19 @@ pub fn build(b: *Build) !void {
     });
 
     kernel.linker_script = b.path("src/x64.ld");
-    kernel.addAssemblyFile(b.path("src/boot.S"));
-    kernel.addAssemblyFile(b.path("src/interrupt.S"));
-    kernel.addObjectFile(b.path("build/newlib/libc.a"));
-    kernel.addObjectFile(b.path("build/lwip/libtcpip.a"));
-    kernel.addObjectFile(b.path("build/lwip/liblwipcore.a"));
-    kernel.addObjectFile(b.path("build/lwip/liblwipallapps.a"));
-    kernel.addCSourceFile(.{ .file = b.path("src/c/newlib_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
-    kernel.addCSourceFile(.{ .file = b.path("src/c/lwip_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.root_module.addAssemblyFile(b.path("src/boot.S"));
+    kernel.root_module.addAssemblyFile(b.path("src/interrupt.S"));
+    kernel.root_module.addObjectFile(b.path("build/newlib/libc.a"));
+    kernel.root_module.addObjectFile(b.path("build/lwip/libtcpip.a"));
+    kernel.root_module.addObjectFile(b.path("build/lwip/liblwipcore.a"));
+    kernel.root_module.addObjectFile(b.path("build/lwip/liblwipallapps.a"));
+    kernel.root_module.addCSourceFile(.{ .file = b.path("src/c/newlib_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
+    kernel.root_module.addCSourceFile(.{ .file = b.path("src/c/lwip_support.c"), .flags = &.{ "-I", "submodules/newlib/newlib/libc/include" } });
     if (params.obj_path) |p| {
-        kernel.addObjectFile(b.path(p));
+        kernel.root_module.addObjectFile(b.path(p));
     }
     if (params.dir_path) |_| {
-        kernel.addObjectFile(b.path("build/disk.o"));
+        kernel.root_module.addObjectFile(b.path("build/disk.o"));
     }
     kernel.root_module.addOptions("options", options);
     kernel.entry = .{ .symbol_name = "boot" };
@@ -156,10 +156,11 @@ pub fn build(b: *Build) !void {
     debug_step.dependOn(&debug_cmd.step);
 }
 
-fn createTestDir() !void {
-    const cwd = std.fs.cwd();
-    const test_dir = try cwd.makeOpenPath(TEST_DIR_PATH, std.fs.Dir.OpenOptions{});
-    const file = try test_dir.createFile("test.txt", std.fs.File.CreateFlags{});
-    defer file.close();
-    _ = try file.write("fd_read test\n");
+fn createTestDir(b: *Build) !void {
+    const io = b.graph.io;
+    const cwd: std.Io.Dir = .cwd();
+    cwd.createDirPath(io, TEST_DIR_PATH) catch {};
+    var file = try cwd.createFile(io, TEST_DIR_PATH ++ "/test.txt", .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, "fd_read test\n");
 }

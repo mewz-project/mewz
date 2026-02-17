@@ -32,26 +32,39 @@ pub const Request = struct {
         return false;
     }
 
-    pub fn writeHeaders(self: *const Request, writer: anytype) !void {
+    fn appendBuf(buf: []u8, pos: usize, data: []const u8) !usize {
+        if (pos + data.len > buf.len) return error.NoSpaceLeft;
+        @memcpy(buf[pos..][0..data.len], data);
+        return pos + data.len;
+    }
+
+    fn appendFmt(buf: []u8, pos: usize, comptime fmt: []const u8, args: anytype) !usize {
+        const slice = std.fmt.bufPrint(buf[pos..], fmt, args) catch return error.NoSpaceLeft;
+        return pos + slice.len;
+    }
+
+    pub fn writeHeadersBuf(self: *const Request, buf: []u8, start: usize) !usize {
+        var pos = start;
         // Request line
         const method_str = switch (self.method) {
             .GET => "GET",
             .POST => "POST",
         };
-        try writer.print("{s} {s} HTTP/1.1\r\n", .{ method_str, self.uri });
+        pos = try appendFmt(buf, pos, "{s} {s} HTTP/1.1\r\n", .{ method_str, self.uri });
 
         // Headers
         if (!self.hasHeader("Connection")) {
-            try writer.writeAll("Connection: close\r\n"); // TODO: Support keep-alive
+            pos = try appendBuf(buf, pos, "Connection: close\r\n");
         }
         for (self.headers) |h| {
-            try writer.print("{s}: {s}\r\n", .{ h.name, h.value });
+            pos = try appendFmt(buf, pos, "{s}: {s}\r\n", .{ h.name, h.value });
         }
         if (self.body) |b| {
-            try writer.print("Content-Length: {d}\r\n", .{b.len});
+            pos = try appendFmt(buf, pos, "Content-Length: {d}\r\n", .{b.len});
         }
 
-        try writer.writeAll("\r\n");
+        pos = try appendBuf(buf, pos, "\r\n");
+        return pos;
     }
 };
 
@@ -97,12 +110,11 @@ pub const Client = struct {
         log.debug.printf("Serializing HTTP request...\n", .{});
         log.debug.printf("request.body.len={d}\n", .{if (req.body) |b| b.len else 0});
         var buf: [4096]u8 = undefined;
-        var fbs = std.io.fixedBufferStream(&buf);
-        const w = fbs.writer();
+        var pos: usize = 0;
 
         // Send request
-        try req.writeHeaders(w);
-        try sendAll(sock, fbs.getWritten());
+        pos = try req.writeHeadersBuf(&buf, pos);
+        try sendAll(sock, buf[0..pos]);
 
         // Body
         if (req.body) |b| {

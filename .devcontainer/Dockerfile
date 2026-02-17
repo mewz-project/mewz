@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/devcontainers/rust:1-1-bookworm
 RUN apt-get update && apt-get install -y cmake vim gdb
 
 ARG LLVM_URL=https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.0/clang+llvm-15.0.0-x86_64-linux-gnu-rhel-8.4.tar.xz
-ARG ZIG_URL=https://ziglang.org/download/0.15.1/zig-x86_64-linux-0.15.1.tar.xz
+ARG ZIG_URL=https://ziglang.org/builds/zig-x86_64-linux-0.16.0-dev.2611+f996d2866.tar.xz
 
 ENV PATH="/usr/bin/zig:${PATH}"
 ENV PATH=/usr/local/llvm/bin:$PATH
