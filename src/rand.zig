@@ -11,7 +11,8 @@ pub fn x64FillFn(p: *anyopaque, b: []u8) void {
     for (0..buf.len / 8) |i| {
         const r = asm ("rdrand %[reg]"
             : [reg] "=r" (-> u64),
-        );
+            :
+            : .{ .cc = true });
         const ptr = @as(*u64, @ptrCast(@alignCast(&buf[i * 8])));
         ptr.* = r;
     }
@@ -19,7 +20,8 @@ pub fn x64FillFn(p: *anyopaque, b: []u8) void {
     if (buf.len % 8 != 0) {
         var r = asm ("rdrand %[reg]"
             : [reg] "=r" (-> u64),
-        );
+            :
+            : .{ .cc = true });
         const randBuf = @as([*]u8, @ptrCast(&r));
         for (0..buf.len % 8) |i| {
             buf[buf.len - buf.len % 8 + i] = randBuf[i];

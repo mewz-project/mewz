@@ -63,7 +63,7 @@ pub fn outsl(port: u16, addr: usize, cnt: u32) void {
         : [c] "d" (port),
           [d] "0" (addr),
           [f] "1" (cnt),
-        : .{ .cc = true });
+        : .{ .memory = true, .cc = true });
 }
 
 pub fn lgdt(p: usize, size: u16) void {
@@ -74,7 +74,7 @@ pub fn lgdt(p: usize, size: u16) void {
     asm volatile ("lgdt (%%eax)"
         :
         : [pd] "{eax}" (@intFromPtr(&pd)),
-    );
+        : .{ .memory = true });
 }
 
 pub fn lidt(p: usize, size: u16) void {
@@ -89,7 +89,7 @@ pub fn lidt(p: usize, size: u16) void {
     asm volatile ("lidt (%%eax)"
         :
         : [pd] "{eax}" (@intFromPtr(&pd)),
-    );
+        : .{ .memory = true });
 }
 
 pub fn cr2() u64 {
@@ -158,10 +158,6 @@ fn enableAVX() void {
     //   Bit 7: Hi16_ZMM (full ZMM16-31)
     asm volatile (
         \\.intel_syntax noprefix
-        \\push rax
-        \\push rbx
-        \\push rcx
-        \\push rdx
         \\
         \\ // Query CPU-supported XCR0 bits via CPUID leaf 0Dh
         \\mov eax, 0x0d
@@ -176,10 +172,5 @@ fn enableAVX() void {
         \\and ebx, 0xe7
         \\or eax, ebx
         \\xsetbv
-        \\
-        \\pop rdx
-        \\pop rcx
-        \\pop rbx
-        \\pop rax
-    );
+        ::: .{ .rax = true, .rbx = true, .rcx = true, .rdx = true, .cc = true });
 }
