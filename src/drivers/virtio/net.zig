@@ -143,7 +143,7 @@ const VirtioNet = struct {
     }
 
     pub fn receive(self: *Self) void {
-        const isr = self.virtio.transport.getIsr();
+        const isr = self.virtio.transport.getIsr() orelse return;
         if (isr.isQueue()) {
             lwip.acquire().sys_check_timeouts();
             lwip.release();

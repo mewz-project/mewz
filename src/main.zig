@@ -4,7 +4,6 @@ const options = @import("options");
 const ioapic = @import("ioapic.zig");
 const lapic = @import("lapic.zig");
 const log = @import("log.zig");
-const fs = @import("fs.zig");
 const heap = @import("heap.zig");
 const mem = @import("mem.zig");
 const mewz_panic = @import("panic.zig");
@@ -12,10 +11,12 @@ const uart = @import("uart.zig");
 const param = @import("param.zig");
 const pci = @import("pci.zig");
 const picirq = @import("picirq.zig");
+const stream = @import("stream.zig");
 const tcpip = @import("tcpip.zig");
 const timer = @import("timer.zig");
 const util = @import("util.zig");
 const multiboot = @import("multiboot.zig");
+const vfs = @import("vfs.zig");
 const virtio_net = @import("drivers/virtio/net.zig");
 const interrupt = @import("interrupt.zig");
 const x64 = @import("x64.zig");
@@ -46,12 +47,20 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
     if (param.params.isNetworkEnabled()) {
         virtio_net.init();
     }
+    vfs.init();
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {
         tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, &virtio_net.virtio_net.mac_addr);
     }
-    fs.init();
+
+    const root_dir = vfs.makeRootDir();
+    const root_fd = stream.fd_table.set(stream.Stream{ .dir = root_dir }) catch {
+        log.fatal.print("failed to set root directory\n");
+        x64.shutdown(1);
+        unreachable;
+    };
+    log.debug.printf("root directory: fd={d}, path={s}\n", .{ root_fd, root_dir.name });
 
     uart.putc('\n');
 
