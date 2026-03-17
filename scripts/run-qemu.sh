@@ -9,6 +9,8 @@ QEMU_ARGS=(
     "zig-out/bin/mewz.qemu.elf"
     "-cpu"
     "Icelake-Server"
+    "-m"
+    "512"
     "-device"
     "virtio-net,netdev=net0,disable-legacy=on,disable-modern=off"
     "-netdev"
