@@ -21,19 +21,12 @@ Then, convert it into a native object file with Wasker.
 wasker target/wasm32-wasip1/debug/file_write.wasm
 ```
 
-Now build the Mewz kernel with the Wasm application.
+Now build and run the Mewz kernel with the Wasm application and virtio-fs.
 
 ```sh
 cd ../..
-zig build -Dapp-obj=examples/file_write/wasm.o
-./scripts/rewrite-kernel.sh
-```
-
-Prepare a shared directory and run with virtio-fs.
-
-```sh
 mkdir -p /tmp/mewz-shared
-./scripts/run-qemu.sh --virtiofs /tmp/mewz-shared
+zig build -Dapp-obj=examples/file_write/wasm.o -Dmount=/tmp/mewz-shared run
 ```
 
 After execution, `output.txt` will appear in the shared directory.
