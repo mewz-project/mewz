@@ -28,7 +28,7 @@ jobs:
       - name: Install packages for running tests
         uses: awalsh128/cache-apt-pkgs-action@v1.6.0
         with:
-          packages: qemu-system mtools
+          packages: qemu-system mtools virtiofsd
 
       - name: Cache mewz
         uses: actions/cache@v5

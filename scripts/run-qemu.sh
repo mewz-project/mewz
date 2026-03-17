@@ -34,6 +34,27 @@ QEMU_ARGS=(
 DEBUG=false
 VIRTIOFS_DIR=""
 
+find_virtiofsd() {
+    if command -v virtiofsd >/dev/null 2>&1; then
+        command -v virtiofsd
+        return 0
+    fi
+
+    local candidate
+    for candidate in \
+        /usr/libexec/virtiofsd \
+        /usr/lib/qemu/virtiofsd \
+        /usr/lib/virtiofsd \
+        /usr/local/libexec/virtiofsd; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         -d | --debug)
@@ -59,7 +80,10 @@ fi
 
 if [[ -n "$VIRTIOFS_DIR" ]]; then
     VIRTIOFS_SOCK="/tmp/mewz-virtiofsd-$$"
-    VIRTIOFSD="/usr/lib/qemu/virtiofsd"
+    if ! VIRTIOFSD="$(find_virtiofsd)"; then
+        echo "virtiofsd was not found. Install it and ensure it is in PATH or one of: /usr/libexec/virtiofsd, /usr/lib/qemu/virtiofsd, /usr/lib/virtiofsd, /usr/local/libexec/virtiofsd"
+        exit 1
+    fi
 
     VIRTIOFS_DIR_ABS="$(cd "$VIRTIOFS_DIR" && pwd)"
     sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot >/dev/null 2>&1 &
@@ -96,4 +120,3 @@ qemu-system-x86_64 "${QEMU_ARGS[@]}" || QEMU_RETURN_CODE=$(( $? ))
 RETURN_CODE=$(( (QEMU_RETURN_CODE-1)/2 ))
 
 exit $RETURN_CODE
-
