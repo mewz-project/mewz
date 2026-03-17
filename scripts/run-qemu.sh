@@ -60,7 +60,7 @@ if [[ -n "$VIRTIOFS_DIR" ]]; then
     VIRTIOFSD="/usr/lib/qemu/virtiofsd"
 
     VIRTIOFS_DIR_ABS="$(cd "$VIRTIOFS_DIR" && pwd)"
-    sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot &
+    sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot >/dev/null 2>&1 &
     VIRTIOFSD_PID=$!
     trap "sudo kill $VIRTIOFSD_PID 2>/dev/null; sudo rm -f $VIRTIOFS_SOCK" EXIT
 
