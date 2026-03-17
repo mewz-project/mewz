@@ -62,7 +62,7 @@ if [[ -n "$VIRTIOFS_DIR" ]]; then
     VIRTIOFS_DIR_ABS="$(cd "$VIRTIOFS_DIR" && pwd)"
     sudo "$VIRTIOFSD" --socket-path="$VIRTIOFS_SOCK" -o source="$VIRTIOFS_DIR_ABS" -o sandbox=chroot &
     VIRTIOFSD_PID=$!
-    trap "sudo kill $VIRTIOFSD_PID 2>/dev/null; rm -f $VIRTIOFS_SOCK" EXIT
+    trap "sudo kill $VIRTIOFSD_PID 2>/dev/null; sudo rm -f $VIRTIOFS_SOCK" EXIT
 
     # Wait for socket to appear
     for i in $(seq 1 20); do
