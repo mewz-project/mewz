@@ -310,7 +310,7 @@ pub export fn fd_prestat_dir_name(fd: i32, path_addr: i32, max_path_len: i32) Wa
     log.debug.printf("WASI fd_prestat_dir_name: {d} {d} {d}\n", .{ fd, path_addr, max_path_len });
 
     // get stream from fd
-    var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
+    const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
 
     // if fd is Directory, return it's name
     switch (s.*) {
