@@ -7,6 +7,7 @@ const pci = @import("../../pci.zig");
 
 const REQUEST_BUF_SIZE = 4096;
 const RESPONSE_BUF_SIZE = 65536;
+const MAX_READ_RESPONSE_DATA = RESPONSE_BUF_SIZE - @sizeOf(fuse.OutHeader);
 
 pub var virtio_fs: ?*VirtioFs = null;
 
@@ -210,9 +211,9 @@ const VirtioFs = struct {
         return open_out.*;
     }
 
-    pub fn fuseRead(self: *Self, nodeid: u64, fh: u64, offset: u64, size: u32, out_buf: []u8) ?usize {
+    pub fn fuseRead(self: *Self, nodeid: u64, fh: u64, offset: u64, out_buf: []u8) ?usize {
         const req_len = @sizeOf(fuse.InHeader) + @sizeOf(fuse.ReadIn);
-        const max_data = @min(size, RESPONSE_BUF_SIZE - @sizeOf(fuse.OutHeader));
+        const max_data = @min(out_buf.len, MAX_READ_RESPONSE_DATA);
         const resp_len = @sizeOf(fuse.OutHeader) + max_data;
 
         fuse.fillInHeader(
@@ -227,7 +228,7 @@ const VirtioFs = struct {
         read_in.* = fuse.ReadIn{
             .fh = fh,
             .offset = offset,
-            .size = max_data,
+            .size = @as(u32, @intCast(max_data)),
             .read_flags = 0,
             .lock_owner = 0,
             .flags = 0,

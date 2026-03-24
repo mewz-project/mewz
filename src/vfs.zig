@@ -55,7 +55,7 @@ pub const VfsFile = struct {
             },
             .virtio_file => |*vf| {
                 const dev = virtio_fs_driver.virtio_fs orelse return 0;
-                const nread = dev.fuseRead(vf.nodeid, vf.fh, self.pos, @as(u32, @intCast(@min(buffer.len, 65536 - 80))), buffer) orelse return 0;
+                const nread = dev.fuseRead(vf.nodeid, vf.fh, self.pos, buffer) orelse return 0;
                 self.pos += @as(u64, @intCast(nread));
                 return nread;
             },
