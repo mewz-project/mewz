@@ -140,7 +140,7 @@ export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.c
                     irq_handler.?(frame);
                 }
             } else {
-                log.fatal.print("unregisterd interrupt\n");
+                log.fatal.print("unregistered interrupt\n");
                 unexpectedInterruptHandler(trapno, frame);
             }
         },
