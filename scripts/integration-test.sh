@@ -8,7 +8,10 @@ RUN_QEMU_ARGS=("--virtiofs" "build/test")
 for arg in "$@"; do
   if [ "$arg" = "--ci" ]; then
     CI_MODE=true
+  else
+    RUN_QEMU_ARGS+=("$arg")
   fi
+
 done
 
 # Set sleep times based on CI mode

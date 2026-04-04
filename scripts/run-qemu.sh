@@ -107,8 +107,6 @@ if [[ -n "$VIRTIOFS_DIR" ]]; then
         "-object" "memory-backend-memfd,id=mem,size=512M,share=on"
         "-machine" "memory-backend=mem"
     )
-else
-    QEMU_ARGS+=("-m" "512")
 fi
 
 if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
