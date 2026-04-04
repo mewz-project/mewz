@@ -11,6 +11,16 @@ const O_APPEND: u32 = 0x0400;
 
 const WASI_FDFLAG_APPEND: u16 = 0x0001;
 
+pub const Error = error{
+    Failed,
+    Again,
+    ReadOnly,
+    NotFound,
+    NotDir,
+    NotFile,
+    Unavailable,
+};
+
 pub const OpenOptions = struct {
     read: bool = true,
     write: bool = false,
@@ -42,7 +52,7 @@ pub const VfsFile = struct {
 
     const Self = @This();
 
-    pub fn read(self: *Self, buffer: []u8) error{ FdFull, Failed, Again }!usize {
+    pub fn read(self: *Self, buffer: []u8) Error!usize {
         switch (self.backend) {
             .mem_file => |*mf| {
                 const data = mf.inner.data;
@@ -54,17 +64,17 @@ pub const VfsFile = struct {
                 return nread;
             },
             .virtio_file => |*vf| {
-                const dev = virtio_fs_driver.virtio_fs orelse return 0;
-                const nread = dev.fuseRead(vf.nodeid, vf.fh, self.pos, buffer) orelse return 0;
+                const dev = virtio_fs_driver.virtio_fs orelse return Error.Failed;
+                const nread = dev.fuseRead(vf.nodeid, vf.fh, self.pos, buffer) orelse return Error.Failed;
                 self.pos += @as(u64, @intCast(nread));
                 return nread;
             },
         }
     }
 
-    pub fn write(self: *Self, buffer: []const u8) error{ FdFull, Failed, Again, ReadOnly }!usize {
+    pub fn write(self: *Self, buffer: []const u8) Error!usize {
         if (buffer.len == 0) return 0;
-        if (!self.can_write) return error.ReadOnly;
+        if (!self.can_write) return Error.ReadOnly;
 
         const append_mode = (self.fd_flags & WASI_FDFLAG_APPEND) != 0;
         const start_offset = if (append_mode) switch (self.backend) {
@@ -76,31 +86,31 @@ pub const VfsFile = struct {
         return nwritten;
     }
 
-    pub fn pwrite(self: *Self, buffer: []const u8, offset: u64) error{ FdFull, Failed, Again, ReadOnly }!usize {
+    pub fn pwrite(self: *Self, buffer: []const u8, offset: u64) Error!usize {
         if (buffer.len == 0) return 0;
-        if (!self.can_write) return error.ReadOnly;
+        if (!self.can_write) return Error.ReadOnly;
         return self.writeAt(buffer, offset, false);
     }
 
-    fn writeAt(self: *Self, buffer: []const u8, offset: u64, update_pos: bool) error{Failed}!usize {
+    fn writeAt(self: *Self, buffer: []const u8, offset: u64, update_pos: bool) Error!usize {
         switch (self.backend) {
-            .mem_file => return error.Failed,
+            .mem_file => return Error.Failed,
             .virtio_file => |*vf| {
-                const dev = virtio_fs_driver.virtio_fs orelse return error.Failed;
+                const dev = virtio_fs_driver.virtio_fs orelse return Error.Failed;
 
                 var total_written: usize = 0;
                 var current_offset = offset;
                 while (total_written < buffer.len) {
                     const nwritten = dev.fuseWrite(vf.nodeid, vf.fh, current_offset, buffer[total_written..]) orelse {
                         if (total_written > 0) break;
-                        return error.Failed;
+                        return Error.Failed;
                     };
                     if (nwritten == 0) break;
                     total_written += nwritten;
                     current_offset += @as(u64, @intCast(nwritten));
                 }
 
-                if (total_written == 0) return error.Failed;
+                if (total_written == 0) return Error.Failed;
 
                 if (current_offset > vf.file_size) {
                     vf.file_size = current_offset;
@@ -158,15 +168,15 @@ pub const VfsFile = struct {
         self.fd_flags = value;
     }
 
-    pub fn seek(self: *Self, offset: i64, whence: i32) error{Failed}!u64 {
+    pub fn seek(self: *Self, offset: i64, whence: i32) Error!u64 {
         const base: i128 = switch (whence) {
             0 => 0,
             1 => @as(i128, @intCast(self.pos)),
             2 => @as(i128, @intCast(self.size())),
-            else => return error.Failed,
+            else => return Error.Failed,
         };
         const new_pos = base + @as(i128, offset);
-        if (new_pos < 0) return error.Failed;
+        if (new_pos < 0) return Error.Failed;
 
         self.pos = @as(u64, @intCast(new_pos));
         return self.pos;
@@ -196,11 +206,11 @@ pub const VfsDir = struct {
 
     const Self = @This();
 
-    pub fn openFile(self: *Self, path: []const u8, options: OpenOptions) ?VfsFile {
+    pub fn openFile(self: *Self, path: []const u8, options: OpenOptions) Error!VfsFile {
         switch (self.backend) {
             .mem_dir => |*md| {
                 var dir = md.dir;
-                const regular_file = dir.getFileByName(path) orelse return null;
+                const regular_file = dir.getFileByName(path) orelse return Error.NotFound;
                 return VfsFile{
                     .backend = .{ .mem_file = .{ .inner = regular_file } },
                     .pos = 0,
@@ -215,8 +225,8 @@ pub const VfsDir = struct {
     }
 };
 
-fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) ?VfsFile {
-    const dev = virtio_fs_driver.virtio_fs orelse return null;
+fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) Error!VfsFile {
+    const dev = virtio_fs_driver.virtio_fs orelse return Error.Unavailable;
 
     var current_nodeid = parent_nodeid;
     var remaining = path;
@@ -242,10 +252,10 @@ fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) ?V
         if (is_last) {
             if (maybe_entry) |entry| {
                 const attr = entry.attr;
-                if (!attr.isRegular()) return null;
+                if (!attr.isRegular()) return Error.NotFile;
 
                 const open_flags = toLinuxOpenFlags(options);
-                const open_out = dev.fuseOpen(entry.nodeid, false, open_flags) orelse return null;
+                const open_out = dev.fuseOpen(entry.nodeid, false, open_flags) orelse return Error.Failed;
                 return VfsFile{
                     .backend = .{ .virtio_file = .{
                         .nodeid = entry.nodeid,
@@ -258,7 +268,7 @@ fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) ?V
                 };
             } else if (options.create) {
                 const linux_flags = toLinuxOpenFlags(options) | O_CREAT | O_TRUNC;
-                const result = dev.fuseCreate(current_nodeid, component, linux_flags, 0o644) orelse return null;
+                const result = dev.fuseCreate(current_nodeid, component, linux_flags, 0o644) orelse return Error.Failed;
                 return VfsFile{
                     .backend = .{ .virtio_file = .{
                         .nodeid = result.entry.nodeid,
@@ -270,17 +280,17 @@ fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) ?V
                     .fd_flags = if (options.append) WASI_FDFLAG_APPEND else 0,
                 };
             } else {
-                return null;
+                return Error.NotFound;
             }
         }
 
-        const entry = maybe_entry orelse return null;
-        if (!entry.attr.isDir()) return null;
+        const entry = maybe_entry orelse return Error.NotFound;
+        if (!entry.attr.isDir()) return Error.NotDir;
         current_nodeid = entry.nodeid;
         remaining = remaining[sep_idx + 1 ..];
     }
 
-    return null;
+    return Error.NotFound;
 }
 
 fn toLinuxOpenFlags(options: OpenOptions) u32 {

@@ -371,7 +371,7 @@ pub export fn path_open(fd: i32, dirflags: i32, path_addr: i32, path_length: i32
     };
 
     // open file through VFS
-    const opened_file = dir.openFile(path_name, open_options) orelse return WasiError.NOENT;
+    const opened_file = dir.openFile(path_name, open_options) catch |err| return mapVfsOpenError(err);
     const new_fd = stream.fd_table.set(Stream{ .opened_file = opened_file }) catch return WasiError.NOMEM;
 
     // return opened fd
@@ -682,6 +682,16 @@ fn mapStreamError(err: anyerror) WasiError {
         error.Again => WasiError.AGAIN,
         error.ReadOnly => WasiError.ROFS,
         else => WasiError.INVAL,
+    };
+}
+
+fn mapVfsOpenError(err: vfs.Error) WasiError {
+    return switch (err) {
+        vfs.Error.NotFound, vfs.Error.NotFile => WasiError.NOENT,
+        vfs.Error.NotDir => WasiError.NOTDIR,
+        vfs.Error.ReadOnly => WasiError.ROFS,
+        vfs.Error.Again => WasiError.AGAIN,
+        else => WasiError.IO,
     };
 }
 

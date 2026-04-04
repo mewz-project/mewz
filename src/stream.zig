@@ -84,7 +84,7 @@ pub const Stream = union(enum) {
 
     const Self = @This();
 
-    pub const Error = error{ FdFull, ReadOnly } || Socket.Error;
+    pub const Error = error{FdFull} || vfs.Error || Socket.Error;
 
     pub fn read(self: *Self, buffer: []u8) Error!usize {
         return switch (self.*) {
