@@ -681,6 +681,7 @@ fn mapStreamError(err: anyerror) WasiError {
     return switch (err) {
         error.Again => WasiError.AGAIN,
         error.ReadOnly => WasiError.ROFS,
+        error.Failed => WasiError.IO,
         else => WasiError.INVAL,
     };
 }
