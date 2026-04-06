@@ -688,7 +688,8 @@ fn mapStreamError(err: anyerror) WasiError {
 
 fn mapVfsOpenError(err: vfs.Error) WasiError {
     return switch (err) {
-        vfs.Error.NotFound, vfs.Error.NotFile => WasiError.NOENT,
+        vfs.Error.NotFound => WasiError.NOENT,
+        vfs.Error.NotFile => WasiError.ISDIR,
         vfs.Error.NotDir => WasiError.NOTDIR,
         vfs.Error.ReadOnly => WasiError.ROFS,
         vfs.Error.Again => WasiError.AGAIN,
