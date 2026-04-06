@@ -267,7 +267,7 @@ fn openVirtioFile(parent_nodeid: u64, path: []const u8, options: OpenOptions) Er
                     .fd_flags = if (options.append) WASI_FDFLAG_APPEND else 0,
                 };
             } else if (options.create) {
-                const linux_flags = toLinuxOpenFlags(options) | O_CREAT | O_TRUNC;
+                const linux_flags = toLinuxOpenFlags(options) | O_CREAT;
                 const result = dev.fuseCreate(current_nodeid, component, linux_flags, 0o644) orelse return Error.Failed;
                 return VfsFile{
                     .backend = .{ .virtio_file = .{
