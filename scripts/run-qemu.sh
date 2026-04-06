@@ -62,6 +62,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --virtiofs)
             shift
+            if [[ $# -eq 0 || "$1" == -* ]]; then
+                echo "missing argument for --virtiofs: expected directory path" >&2
+                exit 1
+            fi
             VIRTIOFS_DIR="$1"
             ;;
         -*)
