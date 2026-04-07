@@ -11,8 +11,6 @@ const MAX_READ_RESPONSE_DATA = RESPONSE_BUF_SIZE - @sizeOf(fuse.OutHeader);
 
 pub var virtio_fs: ?*VirtioFs = null;
 
-
-
 const VirtioFsDeviceConfig = extern struct {
     tag: [36]u8,
     num_queues: u32,
@@ -100,6 +98,11 @@ const VirtioFs = struct {
         };
 
         const out_header = @as(*fuse.OutHeader, @ptrCast(@alignCast(self.response_buf.ptr)));
+        const out_len = @as(usize, @intCast(out_header.len));
+        if (out_len < @sizeOf(fuse.OutHeader) or out_len > resp_len or out_len > self.response_buf.len) {
+            log.fatal.printf("virtio-fs: invalid response length: {d}\n", .{out_header.len});
+            return null;
+        }
         if (out_header.err != 0) {
             log.info.printf("virtio-fs: FUSE error: {d}\n", .{out_header.err});
             return null;
