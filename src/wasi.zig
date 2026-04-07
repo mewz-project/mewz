@@ -144,7 +144,8 @@ pub export fn fd_pwrite(fd: i32, buf_iovec_addr: i32, vec_len: i32, offset: i64,
     const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
     const opened_file = switch (s.*) {
         Stream.opened_file => |*f| f,
-        else => return WasiError.BADF,
+        Stream.dir => return WasiError.ISDIR,
+        else => return WasiError.SPIPE,
     };
 
     var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
