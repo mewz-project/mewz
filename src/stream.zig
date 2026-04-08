@@ -1,13 +1,13 @@
-const fs = @import("fs.zig");
 const log = @import("log.zig");
 const uart = @import("uart.zig");
 const tcpip = @import("tcpip.zig");
 const sync = @import("sync.zig");
+const vfs = @import("vfs.zig");
 
-const Directory = fs.Directory;
+const VfsFile = vfs.VfsFile;
+const VfsDir = vfs.VfsDir;
 const Socket = tcpip.Socket;
 const SpinLock = sync.SpinLock;
-const OpenedFile = fs.OpenedFile;
 
 const STREAM_NUM = 2048;
 
@@ -79,12 +79,12 @@ const FdTable = struct {
 pub const Stream = union(enum) {
     uart: void,
     socket: Socket,
-    opened_file: OpenedFile,
-    dir: Directory,
+    opened_file: VfsFile,
+    dir: VfsDir,
 
     const Self = @This();
 
-    pub const Error = error{FdFull} || Socket.Error;
+    pub const Error = error{FdFull} || vfs.Error || Socket.Error;
 
     pub fn read(self: *Self, buffer: []u8) Error!usize {
         return switch (self.*) {
@@ -99,7 +99,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => uart.write(buffer),
             Self.socket => |*sock| sock.send(buffer),
-            Self.opened_file => @panic("write on opened_file unimplemented"),
+            Self.opened_file => |*f| f.write(buffer),
             Self.dir => @panic("write on dir unimplemented"),
         };
     }
@@ -108,7 +108,9 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => @panic("close on uart unimplemented"),
             Self.socket => |*sock| sock.close(),
-            Self.opened_file => {},
+            Self.opened_file => |*f| {
+                f.close();
+            },
             Self.dir => {},
         };
     }
@@ -117,7 +119,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 0,
             Self.socket => 0,
-            Self.opened_file => 0,
+            Self.opened_file => |*f| f.flags(),
             Self.dir => 0,
         };
     }
@@ -128,7 +130,7 @@ pub const Stream = union(enum) {
                 log.warn.printf("set flags on uart unimplemented\n", .{});
             },
             Self.socket => |*sock| sock.*.flags |= f,
-            Self.opened_file => @panic("set flags on opened_file unimplemented"),
+            Self.opened_file => |*file| file.setFlags(f),
             Self.dir => @panic("set flags on dir unimplemented"),
         }
     }
@@ -137,7 +139,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanRead(),
-            Self.opened_file => |*f| f.inner.data.len - f.pos,
+            Self.opened_file => |*f| f.bytesCanRead(),
             Self.dir => 0,
         };
     }
@@ -146,7 +148,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 1,
             Self.socket => |*sock| sock.bytesCanWrite(),
-            Self.opened_file => 0,
+            Self.opened_file => |*f| f.bytesCanWrite(),
             Self.dir => 0,
         };
     }
@@ -155,7 +157,7 @@ pub const Stream = union(enum) {
         return switch (self.*) {
             Self.uart => 0,
             Self.socket => 0,
-            Self.opened_file => |*f| f.inner.data.len,
+            Self.opened_file => |*f| @as(usize, @intCast(f.size())),
             Self.dir => 0,
         };
     }

@@ -28,7 +28,7 @@ const FreeList = struct {
     next: ?*FreeList,
 };
 
-const PageMapEntry = packed struct {
+const PageMapEntry = packed struct(u64) {
     present: u1,
     writable: u1,
     user_accessible: u1,

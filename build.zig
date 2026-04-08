@@ -9,6 +9,7 @@ const TEST_DIR_PATH = "build/test";
 const BuildParams = struct {
     obj_path: ?[]const u8 = undefined,
     dir_path: ?[]const u8 = undefined,
+    mount_path: ?[]const u8 = undefined,
     is_test: bool = undefined,
     log_level: []const u8 = undefined,
 
@@ -37,6 +38,13 @@ const BuildParams = struct {
             params.dir_path = p;
         } else {
             params.dir_path = null;
+        }
+
+        const mount_path_option = b.option([]const u8, "mount", "path to directory for virtio-fs mount");
+        if (mount_path_option) |p| {
+            params.mount_path = p;
+        } else {
+            params.mount_path = null;
         }
 
         const test_option = b.option(bool, "test", "run tests");
@@ -140,6 +148,12 @@ pub fn build(b: *Build) !void {
         [_][]const u8{"./scripts/run-qemu.sh"};
 
     const run_cmd = b.addSystemCommand(&run_cmd_str);
+    if (!params.is_test) {
+        if (params.mount_path) |p| {
+            run_cmd.addArg("--virtiofs");
+            run_cmd.addArg(p);
+        }
+    }
     run_cmd.step.dependOn(&rewrite_kernel_cmd.step);
 
     const run_step = b.step("run", "Run the kernel");
@@ -150,6 +164,12 @@ pub fn build(b: *Build) !void {
     };
 
     const debug_cmd = b.addSystemCommand(&debug_cmd_str);
+    if (!params.is_test) {
+        if (params.mount_path) |p| {
+            debug_cmd.addArg("--virtiofs");
+            debug_cmd.addArg(p);
+        }
+    }
     debug_cmd.step.dependOn(&rewrite_kernel_cmd.step);
 
     const debug_step = b.step("debug", "Debug the kernel");

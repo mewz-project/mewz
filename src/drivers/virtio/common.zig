@@ -543,8 +543,10 @@ pub fn VirtioMmioTransport(comptime DeviceConfigType: type) type {
             virtq.not_notified_num_descs = 0;
         }
 
-        pub fn getIsr(self: *Self) IsrStatus {
-            return @as(IsrStatus, @enumFromInt(self.isr.*));
+        pub fn getIsr(self: *Self) ?IsrStatus {
+            const val = self.isr.*;
+            if (val == 0) return null;
+            return @as(IsrStatus, @enumFromInt(val & 0x3));
         }
     };
 }

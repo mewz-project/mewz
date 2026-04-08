@@ -1,6 +1,6 @@
 FROM ghcr.io/mewz-project/wasker:latest
 
-ARG ZIG_VERSION=zig-x86_64-linux-0.16.0-dev.2611+f996d2866
+ARG ZIG_VERSION=zig-x86_64-linux-0.16.0-dev.2979+e93834410
 
 ENV PATH="/usr/bin/zig:${PATH}"
 

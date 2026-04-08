@@ -23,13 +23,15 @@ extern const interrupt_handlers: u32;
 
 var idt: [256]InterruptDescriptor = undefined;
 
-var irq_handlers: [256]?*const fn (*InterruptFrame) void = init: {
-    var initial_value: [256]?fn (*InterruptFrame) void = undefined;
-    for (&initial_value) |*pt| {
-        pt.* = null;
-    }
-    break :init undefined;
+const IrqHandler = *const fn (*InterruptFrame) void;
+const MAX_IRQ_HANDLERS_PER_LINE = 4;
+
+const IrqHandlerList = struct {
+    count: u8 = 0,
+    handlers: [MAX_IRQ_HANDLERS_PER_LINE]?IrqHandler = [_]?IrqHandler{null} ** MAX_IRQ_HANDLERS_PER_LINE,
 };
+
+var irq_handlers: [256]IrqHandlerList = [_]IrqHandlerList{.{}} ** 256;
 
 pub const InterruptDescriptor = packed struct {
     off_15_0: u16, // low 16 bits of offset in segment
@@ -105,8 +107,21 @@ pub fn init() void {
     x64.lidt(@intFromPtr(&idt), @as(u16, @intCast(@sizeOf(@TypeOf(idt)))));
 }
 
-pub fn registerIrq(irq: u8, handler: *const fn (*InterruptFrame) void) void {
-    irq_handlers[irq] = handler;
+pub fn registerIrq(irq: u8, handler: IrqHandler) void {
+    const irq_entry = &irq_handlers[irq];
+
+    for (irq_entry.handlers[0..irq_entry.count]) |existing| {
+        if (existing != null and @intFromPtr(existing.?) == @intFromPtr(handler)) {
+            return;
+        }
+    }
+
+    if (irq_entry.count >= MAX_IRQ_HANDLERS_PER_LINE) {
+        @panic("too many irq handlers registered for one IRQ line");
+    }
+
+    irq_entry.handlers[irq_entry.count] = handler;
+    irq_entry.count += 1;
 }
 
 var ticks: u32 = 0;
@@ -119,10 +134,13 @@ export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.c
         },
         T_IRQ0...255 => {
             const irq = trapno - T_IRQ0;
-            if (irq_handlers[irq]) |irq_handler| {
-                irq_handler(frame);
+            const handlers = irq_handlers[irq];
+            if (handlers.count > 0) {
+                for (handlers.handlers[0..handlers.count]) |irq_handler| {
+                    irq_handler.?(frame);
+                }
             } else {
-                log.fatal.print("unregisterd interrupt\n");
+                log.fatal.print("unregistered interrupt\n");
                 unexpectedInterruptHandler(trapno, frame);
             }
         },

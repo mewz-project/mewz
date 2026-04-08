@@ -3,7 +3,7 @@ set -ex
 
 # Parse command line arguments to check for --ci option
 CI_MODE=false
-RUN_QEMU_ARGS=()
+RUN_QEMU_ARGS=("--virtiofs" "build/test")
 
 for arg in "$@"; do
   if [ "$arg" = "--ci" ]; then
@@ -11,6 +11,7 @@ for arg in "$@"; do
   else
     RUN_QEMU_ARGS+=("$arg")
   fi
+
 done
 
 # Set sleep times based on CI mode
@@ -20,15 +21,16 @@ if [ "$CI_MODE" = true ]; then
   CURL_SLEEP=8
   ./scripts/rewrite-kernel.sh
 else
-  TELNET_SLEEP=4
+  TELNET_SLEEP=8
   TELNET_ECHO_SLEEP=0.5
-  CURL_SLEEP=2
+  CURL_SLEEP=5
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT
 
 mkdir -p build/test
+
 (stty -echo; sleep $TELNET_SLEEP; (sleep $TELNET_ECHO_SLEEP; echo q) | telnet localhost 1234) &
 (sleep $CURL_SLEEP; curl localhost:1234) &
 ./scripts/run-qemu.sh "${RUN_QEMU_ARGS[@]}" | tee build/test/output.txt

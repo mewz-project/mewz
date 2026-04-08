@@ -1,15 +1,13 @@
 const log = @import("log.zig");
-const stream = @import("stream.zig");
 const options = @import("options");
 const std = @import("std");
-
-const Stream = stream.Stream;
 
 const FILES_MAX: usize = 200;
 
 extern var _binary_build_disk_tar_start: [*]u8;
 
 pub var files: [FILES_MAX]RegularFile = undefined;
+pub var num_dirs: usize = 0;
 pub var dirs: [FILES_MAX]Directory = undefined;
 
 const TarHeader = extern struct {
@@ -43,9 +41,8 @@ pub const OpenedFile = struct {
     pos: usize = 0,
 
     const Self = @This();
-    const Error = error{Failed};
 
-    pub fn read(self: *Self, buffer: []u8) Stream.Error!usize {
+    pub fn read(self: *Self, buffer: []u8) usize {
         const nread = @min(buffer.len, self.inner.data.len - self.pos);
         @memcpy(buffer[0..nread], self.inner.data[self.pos..][0..nread]);
         self.pos = self.pos + nread;
@@ -183,19 +180,5 @@ pub fn init() void {
         i_regular += 1;
     }
 
-    // register root directory as opend
-    var dir = Directory{
-        .name = undefined,
-    };
-    if (dirs[0].name.len > 0) {
-        dir.name = dirs[0].name;
-    } else {
-        var current_dir = [_]u8{ '.', '/' };
-        dir.name = &current_dir;
-    }
-    const new_fd = stream.fd_table.set(Stream{ .dir = dir }) catch {
-        log.fatal.print("failed to set root directory\n");
-        return;
-    };
-    log.debug.printf("root directory: fd={d}, path={s}\n", .{ new_fd, dir.name });
+    num_dirs = i_dir;
 }

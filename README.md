@@ -102,5 +102,5 @@ zig bulid -Dtest=true run
 |       WASI Preview 1  |                            In Progress: Partial Implementation (Please refer to https://github.com/Mewz-project/Mewz/issues/1)                  |
 |       Socket          |                            ✅ (WasmEdge Compatible)                                                   |
 |       Component Model |                              Not yet                                                                 |
-|       File System     |                            On memory, read only                                                      |
+|       File System     |                            In-memory FS: read-only, Virtio-FS: read/write (partial)                |
 |       Network         |                             ✅                                                                        |
