@@ -1,0 +1,10 @@
+[package]
+name = "ai_agent"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hyper_wasi = { version = "0.15.2", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio_wasi = { version = "1", features = ["rt", "macros", "net", "time", "io-util"] }
