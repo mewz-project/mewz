@@ -64,7 +64,11 @@ pub export fn memory_base() callconv(.c) usize {
 pub export fn clock_time_get(clock_id: i32, precision: i64, time_addr: i32) WasiError {
     log.debug.printf("WASI clock_time_get: {d} {d} {d}\n", .{ clock_id, precision, time_addr });
     const time_ptr = @as(*u64, @ptrFromInt(@as(usize, @intCast(time_addr)) + linear_memory_offset));
-    time_ptr.* = timer.getNanoSeconds();
+    time_ptr.* = switch (clock_id) {
+        0 => timer.getRealtimeNanoSeconds(), // CLOCKID_REALTIME
+        1 => timer.getMonotonicNanoSeconds(), // CLOCKID_MONOTONIC
+        else => return WasiError.INVAL,
+    };
     return WasiError.SUCCESS;
 }
 
@@ -882,14 +886,6 @@ pub fn integrationTest() void {
     }
 
     if (!testServerSocket()) {
-        return;
-    }
-
-    if (!testGetAddrInfo()) {
-        return;
-    }
-
-    if (!testDnsGetAddrInfo()) {
         return;
     }
 

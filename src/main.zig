@@ -51,7 +51,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
 
     mem.init2();
     if (param.params.isNetworkEnabled()) {
-        tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, param.params.dns, &virtio_net.virtio_net.mac_addr);
+        tcpip.init(param.params.addr.?, param.params.subnetmask.?, param.params.gateway.?, param.params.dns, &virtio_net.virtio_net.?.mac_addr);
     }
 
     const root_dir = vfs.makeRootDir();
@@ -84,7 +84,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
 // ssize_t write(int fd, const void* buf, size_t count)
 export fn write(fd: i32, b: *const u8, count: usize) callconv(.c) isize {
     if (fd == 1 or fd == 2) {
-        const buf = @as([*]u8, @constCast(@ptrCast(b)))[0..count];
+        const buf = @as([*]u8, @ptrCast(@constCast(b)))[0..count];
         log.fatal.print(buf);
         return @as(isize, @intCast(count));
     }

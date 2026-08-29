@@ -1,26 +1,41 @@
-use hyper::body::HttpBody;
-use hyper::{Client, Uri};
+use hyper::{Body, Client, Uri};
+use hyper_rustls::HttpsConnectorBuilder;
+use rustls::RootCertStore;
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let url = "http://google.com/";
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+fn build_https_client() -> Result<Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>, BoxError> {
+    let mut root_store = RootCertStore::empty();
+    root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+    let tls = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    let https = HttpsConnectorBuilder::new()
+        .with_tls_config(tls)
+        .https_or_http()
+        .enable_http1()
+        .build();
+
+    Ok(Client::builder().build::<_, Body>(https))
+}
+
+async fn fetch(url: &str) -> Result<(), BoxError> {
     println!("GET {url}...");
 
     let uri: Uri = url.parse()?;
-    let client = Client::new();
-    let mut response = client.get(uri).await?;
+    let client = build_https_client()?;
+    let response = client.get(uri).await?;
 
     println!("Status: {}", response.status());
-    println!("Headers:\n{:#?}", response.headers());
 
-    let mut body = Vec::new();
-    while let Some(chunk) = response.data().await {
-        body.extend_from_slice(&chunk?);
-    }
+    Ok(())
+}
 
-    let preview = String::from_utf8_lossy(&body);
-    let lines: Vec<&str> = preview.lines().take(10).collect();
-    println!("Body (first 10 lines):\n{}", lines.join("\n"));
-
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BoxError> {
+    fetch("https://example.com/").await?;
+    fetch("http://google.com/").await?;
     Ok(())
 }

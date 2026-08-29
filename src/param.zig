@@ -1,5 +1,4 @@
 const std = @import("std");
-const log = @import("log.zig");
 const Ip4Address = std.os.linux.sockaddr;
 
 const Params = struct {
@@ -7,6 +6,8 @@ const Params = struct {
     subnetmask: ?u32 = null,
     gateway: ?u32 = null,
     dns: u32 = defaultDns(),
+    /// Unix epoch seconds for REALTIME clock fallback when CMOS RTC is unavailable.
+    epoch: ?u64 = null,
 
     pub fn isNetworkEnabled(self: Params) bool {
         return self.addr != null and self.subnetmask != null and self.gateway != null;
@@ -38,6 +39,10 @@ pub fn parseFromArgs(args: []const u8) void {
         } else if (std.mem.eql(u8, k, "dns")) {
             params.dns = parseIp4Address(v) orelse {
                 @panic("invalid ip format");
+            };
+        } else if (std.mem.eql(u8, k, "epoch")) {
+            params.epoch = std.fmt.parseInt(u64, v, 10) catch {
+                @panic("invalid epoch format");
             };
         } else {
             continue;

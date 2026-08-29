@@ -8,7 +8,7 @@ const pci = @import("../../pci.zig");
 
 const PACKET_MAX_LEN = 2048;
 
-pub var virtio_net: *VirtioNet = undefined;
+pub var virtio_net: ?*VirtioNet = null;
 
 extern fn rx_recv(data: *u8, len: u16) void;
 
@@ -112,7 +112,7 @@ const VirtioNet = struct {
         @setRuntimeSafety(false);
 
         const idx = self.tx_ring_index % self.transmitq().num_descs;
-        const base = @intFromPtr(&virtio_net.tx_ring[idx * PACKET_MAX_LEN]);
+        const base = @intFromPtr(&virtio_net.?.tx_ring[idx * PACKET_MAX_LEN]);
         defer self.tx_ring_index +%= 1;
 
         const header = @as(*Header, @ptrFromInt(base));
@@ -198,16 +198,20 @@ pub fn init() void {
 
     const virtio_net_slice = mem.boottime_allocator.?.alloc(VirtioNet, 1) catch @panic("virtio net alloc failed");
     virtio_net = @as(*VirtioNet, @ptrCast(virtio_net_slice.ptr));
-    virtio_net.* = VirtioNet.new(virtio);
-    interrupt.registerIrq(virtio_net.virtio.transport.pci_dev.config.interrupt_line, handleIrq);
+    virtio_net.?.* = VirtioNet.new(virtio);
+    interrupt.registerIrq(virtio_net.?.virtio.transport.pci_dev.config.interrupt_line, handleIrq);
 }
 
 fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
     log.debug.print("interrupt\n");
-    virtio_net.receive();
+    if (virtio_net) |vn| {
+        vn.receive();
+    }
 }
 
 pub fn flush() void {
-    virtio_net.virtio.transport.notifyQueue(virtio_net.transmitq());
+    if (virtio_net) |vn| {
+        vn.virtio.transport.notifyQueue(vn.transmitq());
+    }
 }
