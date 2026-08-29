@@ -96,7 +96,7 @@ pub const Socket = struct {
                 @panic("accept: new file descriptor not found");
             }
             self.buffer.release();
-            const new_fd = @as(*i32, @alignCast(@ptrCast(buf[0..].ptr)));
+            const new_fd = @as(*i32, @ptrCast(@alignCast(buf[0..].ptr)));
             return new_fd.*;
         }
 
@@ -230,7 +230,7 @@ pub const Socket = struct {
 
         self.buffer.acquire().deinit(heap.runtime_allocator);
         self.buffer.release();
-        heap.runtime_allocator.destroy(@as(*util.RingBuffer, @alignCast(@ptrCast(self.buffer.ptr))));
+        heap.runtime_allocator.destroy(@as(*util.RingBuffer, @ptrCast(@alignCast(self.buffer.ptr))));
     }
 
     pub fn getRemoteAddr(self: *Self) *IpAddr {
@@ -379,16 +379,17 @@ pub fn resolveHostname(hostname: []const u8) ResolveError![4]u8 {
 
     var ip: [4]u8 = undefined;
     const ret = lwip.acquire().lwip_dns_resolve_ipv4(@ptrCast(&buf[0]), &ip);
-    lwip.release();
-
     if (ret == 0) {
+        lwip.release();
         return ip;
     }
     if (ret != 1) {
+        lwip.release();
         return ResolveError.Failed;
     }
-
     dns_waiter.setWait();
+
+    lwip.release();
     dns_waiter.wait();
 
     const result = lwip.acquire().lwip_dns_resolve_result(&ip);
