@@ -9,8 +9,10 @@ const poll = @import("poll.zig");
 const rand = @import("rand.zig");
 const stream = @import("stream.zig");
 const tcpip = @import("tcpip.zig");
+const nameresolve = @import("nameresolve.zig");
 const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
+const guest = @import("wasi/guest.zig");
 const vfs = @import("vfs.zig");
 const x64 = @import("x64.zig");
 
@@ -24,8 +26,14 @@ const FileType = types.FileType;
 const FdFlag = types.FdFlag;
 pub const AddressFamily = types.AddressFamily;
 const SocketType = types.SocketType;
+const WasiAddrinfo = types.WasiAddrinfo;
+const WasiSockaddr = types.WasiSockaddr;
+const AiFlags = types.AiFlags;
+const WasiAddressFamily = types.WasiAddressFamily;
+const WasiSocketType = types.WasiSocketType;
+const AiProtocol = types.AiProtocol;
 
-const linear_memory_offset: usize = 0xffff800000000000;
+const linear_memory_offset: usize = guest.memory_base;
 
 const WASI_OFLAG_CREAT: i32 = 0x1;
 const WASI_OFLAG_TRUNC: i32 = 0x8;
@@ -763,6 +771,72 @@ pub export fn sock_setsockopt(fd: i32, level: i32, optname: i32, optval_addr: i3
     return WasiError.SUCCESS;
 }
 
+fn mapNameresolveError(err: nameresolve.Error) WasiError {
+    return switch (err) {
+        error.Noname => .AINONAME,
+        error.Memory => .AIMEMORY,
+        error.Failed => .AIFAIL,
+        error.Family => .AIFAMILY,
+        error.Service => .AISERVICE,
+    };
+}
+
+fn nameresolveHintsFromWasi(hints: ?*const WasiAddrinfo) ?nameresolve.Hints {
+    const h = hints orelse return null;
+    const hint_bytes = @as([*]const u8, @ptrCast(h));
+    const flags = std.mem.readInt(u16, hint_bytes[0..2], .little);
+    return .{
+        .passive = flags == @intFromEnum(AiFlags.Passive),
+        .numeric_host = flags == @intFromEnum(AiFlags.NumericHost),
+        .want_inet6 = hint_bytes[2] == @intFromEnum(WasiAddressFamily.INET6),
+    };
+}
+
+pub export fn sock_getaddrinfo(
+    node_addr: i32,
+    node_len: i32,
+    service_addr: i32,
+    service_len: i32,
+    hint_addr: i32,
+    res_addr: i32,
+    max_len: i32,
+    res_len_addr: i32,
+) callconv(.c) WasiError {
+    log.debug.printf("WASI sock_getaddrinfo: node_len={d} service_len={d}\n", .{ node_len, service_len });
+
+    @setRuntimeSafety(false);
+
+    if (max_len <= 0) return WasiError.INVAL;
+
+    const node = guest.sliceFromGuest(node_addr, node_len);
+    const service = guest.sliceFromGuest(service_addr, service_len);
+    if (node == null and service == null) return WasiError.AINONAME;
+
+    if (hint_addr != 0 and guest.addrinfoHintFamilyIsInet6(hint_addr)) return WasiError.AIFAMILY;
+
+    const hints: ?*const WasiAddrinfo = if (hint_addr != 0)
+        guest.ptrFromGuest(WasiAddrinfo, @intCast(hint_addr))
+    else
+        null;
+
+    const port = nameresolve.parseServicePort(service) catch |err| return mapNameresolveError(err);
+    const ip = nameresolve.resolveNode(node, nameresolveHintsFromWasi(hints)) catch |err| return mapNameresolveError(err);
+
+    const res_ptr = guest.ptrFromGuest(u32, @intCast(res_addr));
+    const ai_addr = res_ptr.*;
+
+    guest.fillAddrinfo(ai_addr, hints, port, ip, node);
+
+    const res_len_ptr = guest.ptrFromGuest(u32, @intCast(res_len_addr));
+    res_len_ptr.* = 1;
+
+    log.debug.printf("WASI sock_getaddrinfo: ip={d}.{d}.{d}.{d} port={d} ai_addr={d} addrlen={d} res_len={d}\n", .{
+        ip[0], ip[1], ip[2], ip[3], port, ai_addr, guest.addrinfoAddrlen(ai_addr), res_len_ptr.*,
+    });
+
+    return WasiError.SUCCESS;
+}
+
 pub fn integrationTest() void {
     @setRuntimeSafety(false);
 
@@ -808,6 +882,14 @@ pub fn integrationTest() void {
     }
 
     if (!testServerSocket()) {
+        return;
+    }
+
+    if (!testGetAddrInfo()) {
+        return;
+    }
+
+    if (!testDnsGetAddrInfo()) {
         return;
     }
 
@@ -1339,6 +1421,190 @@ fn testClientSocket() bool {
     }
     log.info.print("client socket test: sock_shutdown succeeded\n");
 
+    return true;
+}
+
+fn testGetAddrInfo() bool {
+    @setRuntimeSafety(false);
+
+    const base: i32 = 512;
+    const node = "1.1.1.1";
+    const service = "80";
+
+    var node_buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base)) + linear_memory_offset));
+    @memcpy(node_buf[0..node.len], node);
+    node_buf[node.len] = 0;
+
+    var service_buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base + 16)) + linear_memory_offset));
+    @memcpy(service_buf[0..service.len], service);
+    service_buf[service.len] = 0;
+
+    const hints = @as(*WasiAddrinfo, @ptrFromInt(@as(usize, @intCast(base + 32)) + linear_memory_offset));
+    hints.* = .{
+        .ai_flags = .NumericHost,
+        .ai_family = .INET4,
+        .ai_socktype = .Stream,
+        .ai_protocol = .TCP,
+        ._pad = .{ 0, 0, 0 },
+        .ai_addrlen = 0,
+        .ai_addr = 0,
+        .ai_canonname = 0,
+        .ai_canonnamelen = 0,
+        .ai_next = 0,
+    };
+
+    const sockaddr = @as(*WasiSockaddr, @ptrFromInt(@as(usize, @intCast(base + 64)) + linear_memory_offset));
+    sockaddr.* = .{
+        .family = .INET4,
+        .sa_data_len = 26,
+        .sa_data = @intCast(base + 128),
+    };
+
+    const ai_out = @as(*WasiAddrinfo, @ptrFromInt(@as(usize, @intCast(base + 96)) + linear_memory_offset));
+    ai_out.* = .{
+        .ai_flags = .Passive,
+        .ai_family = .INET4,
+        .ai_socktype = .Stream,
+        .ai_protocol = .TCP,
+        ._pad = .{ 0, 0, 0 },
+        .ai_addrlen = 0,
+        .ai_addr = @intCast(base + 64),
+        .ai_canonname = @intCast(base + 160),
+        .ai_canonnamelen = 32,
+        .ai_next = 0,
+    };
+
+    const res_ptr = @as(*u32, @ptrFromInt(@as(usize, @intCast(base + 192)) + linear_memory_offset));
+    res_ptr.* = @intCast(base + 96);
+    const res_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(base + 196)) + linear_memory_offset));
+
+    const ret = sock_getaddrinfo(
+        base,
+        @intCast(node.len + 1),
+        base + 16,
+        @intCast(service.len + 1),
+        base + 32,
+        base + 192,
+        1,
+        base + 196,
+    );
+    if (@intFromEnum(ret) != 0) {
+        log.fatal.printf("sock_getaddrinfo failed: {d}\n", .{@intFromEnum(ret)});
+        return false;
+    }
+    if (res_len_ptr.* != 1) {
+        log.fatal.printf("sock_getaddrinfo unexpected res_len: {d}\n", .{res_len_ptr.*});
+        return false;
+    }
+
+    const sa_data = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base + 128)) + linear_memory_offset));
+    if (sa_data[2] != 1 or sa_data[3] != 1 or sa_data[4] != 1 or sa_data[5] != 1) {
+        log.fatal.printf("sock_getaddrinfo bad ip: {d}.{d}.{d}.{d}\n", .{ sa_data[2], sa_data[3], sa_data[4], sa_data[5] });
+        return false;
+    }
+    const port = std.mem.readInt(u16, sa_data[0..2], .big);
+    if (port != 80) {
+        log.fatal.printf("sock_getaddrinfo bad port: {d}\n", .{port});
+        return false;
+    }
+    const addrlen = guest.addrinfoAddrlen(@intCast(base + 96));
+    if (addrlen != 6) {
+        log.fatal.printf("sock_getaddrinfo bad addrlen: {d}\n", .{addrlen});
+        return false;
+    }
+    log.info.print("getaddrinfo test: sock_getaddrinfo succeeded\n");
+    return true;
+}
+
+fn testDnsGetAddrInfo() bool {
+    @setRuntimeSafety(false);
+
+    const base: i32 = 768;
+    const node = "one.one.one.one";
+
+    var node_buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base)) + linear_memory_offset));
+    @memcpy(node_buf[0..node.len], node);
+    node_buf[node.len] = 0;
+
+    var service_buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base + 32)) + linear_memory_offset));
+    const service = "http";
+    @memcpy(service_buf[0..service.len], service);
+    service_buf[service.len] = 0;
+
+    const hints = @as(*WasiAddrinfo, @ptrFromInt(@as(usize, @intCast(base + 64)) + linear_memory_offset));
+    hints.* = .{
+        .ai_flags = .Passive,
+        .ai_family = .INET4,
+        .ai_socktype = .Stream,
+        .ai_protocol = .TCP,
+        ._pad = .{ 0, 0, 0 },
+        .ai_addrlen = 0,
+        .ai_addr = 0,
+        .ai_canonname = 0,
+        .ai_canonnamelen = 0,
+        .ai_next = 0,
+    };
+
+    const sockaddr = @as(*WasiSockaddr, @ptrFromInt(@as(usize, @intCast(base + 96)) + linear_memory_offset));
+    sockaddr.* = .{
+        .family = .INET4,
+        .sa_data_len = 26,
+        .sa_data = @intCast(base + 160),
+    };
+
+    const ai_out = @as(*WasiAddrinfo, @ptrFromInt(@as(usize, @intCast(base + 128)) + linear_memory_offset));
+    ai_out.* = .{
+        .ai_flags = .Passive,
+        .ai_family = .INET4,
+        .ai_socktype = .Stream,
+        .ai_protocol = .TCP,
+        ._pad = .{ 0, 0, 0 },
+        .ai_addrlen = 0,
+        .ai_addr = @intCast(base + 96),
+        .ai_canonname = @intCast(base + 192),
+        .ai_canonnamelen = 32,
+        .ai_next = 0,
+    };
+
+    const res_ptr = @as(*u32, @ptrFromInt(@as(usize, @intCast(base + 224)) + linear_memory_offset));
+    res_ptr.* = @intCast(base + 128);
+    const res_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(base + 228)) + linear_memory_offset));
+
+    const ret = sock_getaddrinfo(
+        base,
+        @intCast(node.len + 1),
+        base + 32,
+        @intCast(service.len + 1),
+        base + 64,
+        base + 224,
+        1,
+        base + 228,
+    );
+    if (@intFromEnum(ret) != 0) {
+        log.fatal.printf("dns getaddrinfo failed: {d}\n", .{@intFromEnum(ret)});
+        return false;
+    }
+    if (res_len_ptr.* != 1) {
+        log.fatal.printf("dns getaddrinfo unexpected res_len: {d}\n", .{res_len_ptr.*});
+        return false;
+    }
+
+    const sa_data = @as([*]u8, @ptrFromInt(@as(usize, @intCast(base + 160)) + linear_memory_offset));
+    if (sa_data[2] != 1) {
+        log.fatal.printf("dns getaddrinfo bad ip: {d}.{d}.{d}.{d}\n", .{ sa_data[2], sa_data[3], sa_data[4], sa_data[5] });
+        return false;
+    }
+    const port = std.mem.readInt(u16, sa_data[0..2], .big);
+    if (port != 80) {
+        log.fatal.printf("dns getaddrinfo bad port: {d}\n", .{port});
+        return false;
+    }
+    const addrlen = guest.addrinfoAddrlen(@intCast(base + 128));
+    if (addrlen != 6) {
+        log.fatal.printf("dns getaddrinfo bad addrlen: {d}\n", .{addrlen});
+        return false;
+    }
+    log.info.print("getaddrinfo test: dns resolution succeeded\n");
     return true;
 }
 

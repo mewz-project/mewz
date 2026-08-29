@@ -67,7 +67,9 @@
 #define LWIP_AUTOIP                     1 /* Use Auto IP */
 #define LWIP_SNMP                       0 /* Don't Use SNMP */
 #define LWIP_IGMP                       0 /* Don't Use IGMP */
-#define LWIP_DNS                        0 /* Use DNS */
+#define LWIP_DNS                        1 /* Use DNS */
+#define LWIP_DNS_SECURE                 0
+#define LWIP_NO_CTYPE_H                 1
 #define LWIP_UDP                        1 /* Use UDP */
 #define LWIP_TCP                        1 /* Use TCP */
 

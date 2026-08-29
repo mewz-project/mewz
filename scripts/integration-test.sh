@@ -33,12 +33,12 @@ mkdir -p build/test
 
 (stty -echo; sleep $TELNET_SLEEP; (sleep $TELNET_ECHO_SLEEP; echo q) | telnet localhost 1234) &
 (sleep $CURL_SLEEP; curl localhost:1234) &
-./scripts/run-qemu.sh "${RUN_QEMU_ARGS[@]}" | tee build/test/output.txt
+./scripts/run-qemu.sh "${RUN_QEMU_ARGS[@]}" | tee build/test-output.txt
 
-if ! grep -q "Integration test passed" build/test/output.txt; then
+if ! grep -q "Integration test passed" build/test-output.txt; then
   echo "Integration Test FAILED!!"
   echo "output:"
-  cat build/test/output.txt
+  cat build/test-output.txt
   exit 1
 fi
 
