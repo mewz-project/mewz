@@ -28,10 +28,10 @@ const MAX_IRQ_HANDLERS_PER_LINE = 4;
 
 const IrqHandlerList = struct {
     count: u8 = 0,
-    handlers: [MAX_IRQ_HANDLERS_PER_LINE]?IrqHandler = [_]?IrqHandler{null} ** MAX_IRQ_HANDLERS_PER_LINE,
+    handlers: [MAX_IRQ_HANDLERS_PER_LINE]?IrqHandler = @splat(null),
 };
 
-var irq_handlers: [256]IrqHandlerList = [_]IrqHandlerList{.{}} ** 256;
+var irq_handlers: [256]IrqHandlerList = @splat(.{});
 
 pub const InterruptDescriptor = packed struct {
     off_15_0: u16, // low 16 bits of offset in segment

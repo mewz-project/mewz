@@ -14,9 +14,9 @@ const STREAM_NUM = 2048;
 var streams_internal: [STREAM_NUM]?Stream = init: {
     var initial_fd_table: [STREAM_NUM]?Stream = undefined;
     // set stdin, stdout, and stderr to the uart
-    initial_fd_table[0] = Stream{ .uart = void{} };
-    initial_fd_table[1] = Stream{ .uart = void{} };
-    initial_fd_table[2] = Stream{ .uart = void{} };
+    initial_fd_table[0] = Stream{ .uart = {} };
+    initial_fd_table[1] = Stream{ .uart = {} };
+    initial_fd_table[2] = Stream{ .uart = {} };
     break :init initial_fd_table;
 };
 
