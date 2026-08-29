@@ -3,6 +3,7 @@
 
 #include "lwip/init.h"
 #include "lwip/dhcp.h"
+#include "lwip/dns.h"
 #include "lwip/tcpip.h"
 #include "lwip/autoip.h"
 #include "lwip/opt.h"
@@ -19,8 +20,57 @@ extern void notifyReceived(int fd);
 extern void notifyConnected(int fd);
 extern void notifyClosed(int fd);
 extern void notifyError(int fd, err_t err);
+extern void notifyDnsComplete(void);
 
 struct netif *netif;
+
+static volatile u8_t dns_done;
+static err_t dns_resolve_err;
+static u8_t dns_resolve_ip[4];
+
+static void dns_resolve_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
+  (void)name;
+  (void)callback_arg;
+  if (ipaddr != NULL) {
+    const ip4_addr_t *ip4 = ip_2_ip4(ipaddr);
+    dns_resolve_ip[0] = ip4_addr1(ip4);
+    dns_resolve_ip[1] = ip4_addr2(ip4);
+    dns_resolve_ip[2] = ip4_addr3(ip4);
+    dns_resolve_ip[3] = ip4_addr4(ip4);
+    dns_resolve_err = ERR_OK;
+  } else {
+    dns_resolve_err = ERR_VAL;
+  }
+  dns_done = 1;
+  notifyDnsComplete();
+}
+
+// Returns 0 on success (ip_out filled), 1 if in progress, negative on error.
+int lwip_dns_resolve_ipv4(const char *hostname, u8_t ip_out[4]) {
+  ip_addr_t addr;
+  dns_done = 0;
+  err_t err = dns_gethostbyname(hostname, &addr, dns_resolve_callback, NULL);
+  if (err == ERR_OK) {
+    const ip4_addr_t *ip4 = ip_2_ip4(&addr);
+    ip_out[0] = ip4_addr1(ip4);
+    ip_out[1] = ip4_addr2(ip4);
+    ip_out[2] = ip4_addr3(ip4);
+    ip_out[3] = ip4_addr4(ip4);
+    return 0;
+  }
+  if (err == ERR_INPROGRESS) {
+    return 1;
+  }
+  return (int)err;
+}
+
+int lwip_dns_resolve_result(u8_t ip_out[4]) {
+  if (dns_resolve_err != ERR_OK) {
+    return (int)dns_resolve_err;
+  }
+  memcpy(ip_out, dns_resolve_ip, 4);
+  return 0;
+}
 
 err_t tx_send(struct netif *netif, struct pbuf *head) {
   // Copy data to pkt_buf)
@@ -229,7 +279,7 @@ u16_t lwip_get_remote_port(struct tcp_pcb *pcb) {
   return pcb->remote_port;
 }
 
-void init(u32_t ip, u32_t subnet, u32_t gateway_ip, char macaddr[6]) {
+void init(u32_t ip, u32_t subnet, u32_t gateway_ip, u32_t dns_ip, char macaddr[6]) {
     lwip_init();
 
     ip_addr_t ipaddr, netmask, gateway;
@@ -237,15 +287,16 @@ void init(u32_t ip, u32_t subnet, u32_t gateway_ip, char macaddr[6]) {
     netmask.addr = subnet;
     gateway.addr = gateway_ip;
 
-    // Specify TCP port
-    u16_t tcp_port = 80;
-
     // Setup netif
     netif = malloc(sizeof(struct netif));
     netif_add(netif, &ipaddr, &netmask, &gateway,
               macaddr, init_netif, ethernet_input);
     netif_set_default(netif);
     netif_set_up(netif);
+
+    ip_addr_t dns_addr;
+    dns_addr.addr = dns_ip;
+    dns_setserver(0, &dns_addr);
 
     // // Setup TCP
     // struct tcp_pcb *tcp_pcb1;

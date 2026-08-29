@@ -321,7 +321,86 @@ fn wasiToLwipAddressType(t: wasi.AddressFamily) u8 {
     }
 }
 
-pub extern fn init(ip: u32, netmask: u32, gateway: u32, macaddr: *[6]u8) void;
+pub const ResolveError = error{
+    Failed,
+    Noname,
+    Memory,
+};
+
+var dns_waiter: sync.Waiter = sync.Waiter.new();
+
+pub fn ipAddrFromOctets(octets: [4]u8) IpAddr {
+    var addr: u32 = 0;
+    @memcpy(@as([*]u8, @ptrCast(&addr))[0..4], &octets);
+    return .{ .addr = addr };
+}
+
+pub fn parseIpv4Address(buf: []const u8) ?[4]u8 {
+    var result: [4]u8 = undefined;
+    var x: u8 = 0;
+    var index: u8 = 0;
+    var saw_any_digits = false;
+    var has_zero_prefix = false;
+    for (buf) |c| {
+        if (c == '.') {
+            if (!saw_any_digits or index == 3) return null;
+            result[index] = x;
+            index += 1;
+            x = 0;
+            saw_any_digits = false;
+            has_zero_prefix = false;
+        } else if (c >= '0' and c <= '9') {
+            if (c == '0' and !saw_any_digits) {
+                has_zero_prefix = true;
+            } else if (has_zero_prefix) {
+                return null;
+            }
+            saw_any_digits = true;
+            x = @import("std").math.mul(u8, x, 10) catch return null;
+            x = @import("std").math.add(u8, x, c - '0') catch return null;
+        } else {
+            return null;
+        }
+    }
+    if (index == 3 and saw_any_digits) {
+        result[index] = x;
+        return result;
+    }
+    return null;
+}
+
+pub fn resolveHostname(hostname: []const u8) ResolveError![4]u8 {
+    if (hostname.len == 0) return ResolveError.Noname;
+    if (hostname.len >= 256) return ResolveError.Failed;
+
+    var buf: [256]u8 = undefined;
+    @memcpy(buf[0..hostname.len], hostname);
+    buf[hostname.len] = 0;
+
+    var ip: [4]u8 = undefined;
+    const ret = lwip.acquire().lwip_dns_resolve_ipv4(@ptrCast(&buf[0]), &ip);
+    lwip.release();
+
+    if (ret == 0) {
+        return ip;
+    }
+    if (ret != 1) {
+        return ResolveError.Failed;
+    }
+
+    dns_waiter.setWait();
+    dns_waiter.wait();
+
+    const result = lwip.acquire().lwip_dns_resolve_result(&ip);
+    lwip.release();
+    if (result != 0) {
+        return ResolveError.Failed;
+    }
+
+    return ip;
+}
+
+pub extern fn init(ip: u32, netmask: u32, gateway: u32, dns: u32, macaddr: *[6]u8) void;
 
 export fn transmit(addr: [*c]u8, size: u32) callconv(.c) void {
     const data = addr[0..size];
@@ -410,4 +489,8 @@ export fn notifyError(fd: i32, err: i32) callconv(.c) void {
     socket.is_connected = false;
     socket.is_read_shutdown = true;
     socket.is_write_shutdown = true;
+}
+
+export fn notifyDnsComplete() callconv(.c) void {
+    dns_waiter.waiting = false;
 }
