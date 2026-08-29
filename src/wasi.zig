@@ -893,6 +893,14 @@ pub fn integrationTest() void {
         return;
     }
 
+    if (!testGetAddrInfo()) {
+        return;
+    }
+
+    if (!testDnsGetAddrInfo()) {
+        return;
+    }
+
     if (!testHTTPClient()) {
         return;
     }
