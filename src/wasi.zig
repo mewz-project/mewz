@@ -91,7 +91,7 @@ pub export fn args_get(argv_addrs: i32, argv_buf_addr: i32) WasiError {
 
     var offset: usize = 0;
     for (argv, 0..) |arg, i| {
-        argv_addrs_ptr[i] = @intCast(offset);
+        argv_addrs_ptr[i] = argv_buf_addr + @as(i32, @intCast(offset));
         @memcpy(buf_ptr[offset..][0..arg.len], arg);
         buf_ptr[offset + arg.len] = 0;
         offset += arg.len + 1;
@@ -1061,9 +1061,9 @@ fn testArgs() bool {
         log.fatal.printf("args_sizes_get: expected argc=3, got {d}\n", .{argc_val});
         return false;
     }
-    // "myprog\0arg1\0arg2\0" = 6 + 5 + 5 = 16
-    if (argv_buf_size != 16) {
-        log.fatal.printf("args_sizes_get: expected argv_buf_size=16, got {d}\n", .{argv_buf_size});
+    // "myprog\0arg1\0arg2\0" = 7 + 5 + 5 = 17
+    if (argv_buf_size != 17) {
+        log.fatal.printf("args_sizes_get: expected argv_buf_size=17, got {d}\n", .{argv_buf_size});
         return false;
     }
 
@@ -1076,19 +1076,18 @@ fn testArgs() bool {
     }
 
     const argv_ptrs = @as([*]i32, @ptrFromInt(@as(usize, argv_addrs) + linear_memory_offset));
-    const argv_buf = @as([*]u8, @ptrFromInt(@as(usize, argv_buf_addr) + linear_memory_offset));
 
-    const arg0 = std.mem.sliceTo(argv_buf + @as(usize, @intCast(argv_ptrs[0])), 0);
+    const arg0 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[0])) + linear_memory_offset)), 0);
     if (!std.mem.eql(u8, arg0, "myprog")) {
         log.fatal.printf("args_get: arg0 mismatch: {s}\n", .{arg0});
         return false;
     }
-    const arg1 = std.mem.sliceTo(argv_buf + @as(usize, @intCast(argv_ptrs[1])), 0);
+    const arg1 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[1])) + linear_memory_offset)), 0);
     if (!std.mem.eql(u8, arg1, "arg1")) {
         log.fatal.printf("args_get: arg1 mismatch: {s}\n", .{arg1});
         return false;
     }
-    const arg2 = std.mem.sliceTo(argv_buf + @as(usize, @intCast(argv_ptrs[2])), 0);
+    const arg2 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[2])) + linear_memory_offset)), 0);
     if (!std.mem.eql(u8, arg2, "arg2")) {
         log.fatal.printf("args_get: arg2 mismatch: {s}\n", .{arg2});
         return false;
