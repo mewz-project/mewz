@@ -3,6 +3,7 @@
 // See also picirq.c.
 
 const interrupt = @import("interrupt.zig");
+const std = @import("std");
 
 const IOAPIC = 0xFEC00000; // Default physical address of IO APIC
 
@@ -19,25 +20,31 @@ const INT_LEVEL = 0x00008000; // Level-triggered (vs edge-)
 const INT_ACTIVELOW = 0x00002000; // Active low (vs high)
 const INT_LOGICAL = 0x00000800; // Destination is CPU id (vs APIC ID)
 
-var ioapic: *volatile IoApic = @as(*IoApic, @ptrFromInt(0xFEC00000));
-
-const IoApic = packed struct {
+const IoApic = extern struct {
     reg: u32,
-    pad: u96,
+    _pad: [12]u8,
     data: u32,
 
     const Self = @This();
 
     fn read(self: *volatile Self, reg: u32) u32 {
-        self.*.reg = reg;
-        return self.*.data;
+        self.reg = reg;
+        return self.data;
     }
 
     fn write(self: *volatile Self, reg: u32, data: u32) void {
-        self.*.reg = reg;
-        self.*.data = data;
+        self.reg = reg;
+        self.data = data;
     }
 };
+
+comptime {
+    std.debug.assert(@offsetOf(IoApic, "reg") == 0x00);
+    std.debug.assert(@offsetOf(IoApic, "data") == 0x10);
+    std.debug.assert(@sizeOf(IoApic) == 0x14);
+}
+
+var ioapic: *volatile IoApic = @ptrFromInt(IOAPIC);
 
 pub fn init() void {
     const maxintr = (ioapic.read(REG_VER) >> 16) & 0xff;
