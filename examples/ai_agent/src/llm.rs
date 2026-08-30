@@ -1,225 +1,284 @@
-use crate::agent::AgentStep;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
+const MODEL: &str = "gpt-4o-mini";
+
+const SYSTEM_PROMPT: &str = "\
+You are a helpful AI agent running on Mewz. \
+Use the available tools to gather information and complete the user's task. \
+Think step by step. When you have enough information, reply with the final answer \
+directly without calling any more tools.";
+
+pub struct OpenAiClient {
+    api_key: String,
+    http: reqwest::Client,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCall {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub function: FunctionCall,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatCompletionResponse {
+    choices: Vec<ChatCompletionChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatCompletionChoice {
+    message: ChatMessage,
+}
 
 #[derive(Debug, Clone)]
-pub struct PlannedAction {
+pub struct ToolInvocation {
     pub thought: String,
     pub action: String,
     pub args: String,
 }
 
-pub fn decide_next(task: &str, history: &[AgentStep]) -> Option<PlannedAction> {
-    let task_lower = task.to_lowercase();
+impl OpenAiClient {
+    pub fn new(api_key: &str) -> Result<Self, String> {
+        if api_key.trim().is_empty() {
+            return Err("OpenAI API key must not be empty".to_string());
+        }
 
-    if task.contains('倍') && used_tool(history, "get_time") && used_tool(history, "calculator") {
-        return None;
+        let http = reqwest::Client::builder()
+            .build()
+            .map_err(|err| format!("failed to create HTTP client: {err}"))?;
+
+        Ok(Self {
+            api_key: api_key.to_string(),
+            http,
+        })
     }
 
-    if needs_time(&task_lower) && !used_tool(history, "get_time") {
-        return Some(PlannedAction {
-            thought: "タスクに時刻が関係するので、まず現在時刻を取得する".to_string(),
-            action: "get_time".to_string(),
-            args: String::new(),
-        });
-    }
-
-    if let Some(expr) = follow_up_calculator(task, history) {
-        return Some(PlannedAction {
-            thought: "前の観測結果を使って計算する".to_string(),
-            action: "calculator".to_string(),
-            args: expr,
-        });
-    }
-
-    if let Some(expr) = direct_calculator(task) {
-        if !already_calculated(history, &expr) {
-            return Some(PlannedAction {
-                thought: "数式を計算する".to_string(),
-                action: "calculator".to_string(),
-                args: expr,
+    pub async fn next_step(
+        &self,
+        task: &str,
+        messages: &mut Vec<ChatMessage>,
+    ) -> Result<StepOutcome, String> {
+        if messages.is_empty() {
+            messages.push(ChatMessage {
+                role: "system".to_string(),
+                content: Some(SYSTEM_PROMPT.to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+            });
+            messages.push(ChatMessage {
+                role: "user".to_string(),
+                content: Some(task.to_string()),
+                tool_calls: None,
+                tool_call_id: None,
             });
         }
+
+        let body = serde_json::json!({
+            "model": MODEL,
+            "messages": messages,
+            "tools": tool_definitions(),
+        });
+
+        let response = self
+            .http
+            .post(OPENAI_API_URL)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|err| format!("OpenAI request failed: {err}"))?;
+
+        let status = response.status();
+        let response_body = response
+            .text()
+            .await
+            .map_err(|err| format!("failed to read OpenAI response: {err}"))?;
+
+        if !status.is_success() {
+            return Err(format!("OpenAI API error ({status}): {response_body}"));
+        }
+
+        let completion: ChatCompletionResponse = serde_json::from_str(&response_body)
+            .map_err(|err| format!("failed to parse OpenAI response: {err}: {response_body}"))?;
+
+        let message = completion
+            .choices
+            .into_iter()
+            .next()
+            .map(|choice| choice.message)
+            .ok_or_else(|| "OpenAI returned no choices".to_string())?;
+
+        if let Some(tool_calls) = message.tool_calls.clone() {
+            let invocation = parse_tool_invocation(&message, &tool_calls)?;
+            messages.push(message);
+            return Ok(StepOutcome::Tool(invocation));
+        }
+
+        let answer = message
+            .content
+            .clone()
+            .filter(|content| !content.trim().is_empty())
+            .ok_or_else(|| "OpenAI returned an empty final answer".to_string())?;
+
+        Ok(StepOutcome::Answer(answer))
     }
 
-    if needs_read_file(&task_lower) && !used_tool(history, "read_file") {
-        let path = extract_file_path(task).unwrap_or_else(|| "README.md".to_string());
-        return Some(PlannedAction {
-            thought: format!("`{path}` を読んで内容を確認する"),
-            action: "read_file".to_string(),
-            args: path,
+    pub fn push_tool_result(
+        messages: &mut Vec<ChatMessage>,
+        tool_call_id: &str,
+        observation: &str,
+    ) {
+        messages.push(ChatMessage {
+            role: "tool".to_string(),
+            content: Some(observation.to_string()),
+            tool_calls: None,
+            tool_call_id: Some(tool_call_id.to_string()),
         });
     }
-
-    if history.is_empty() {
-        return Some(PlannedAction {
-            thought: "そのまま入力内容を返す".to_string(),
-            action: "echo".to_string(),
-            args: task.to_string(),
-        });
-    }
-
-    None
 }
 
-fn needs_time(task: &str) -> bool {
-    task.contains("時刻")
-        || task.contains("時間")
-        || task.contains("time")
-        || task.contains("now")
-        || (task.contains("分") && task.contains("倍"))
+#[derive(Debug, Clone)]
+pub enum StepOutcome {
+    Tool(ToolInvocation),
+    Answer(String),
 }
 
-fn needs_read_file(task: &str) -> bool {
-    task.contains("readme")
-        || task.contains("ファイル")
-        || task.contains("file")
-        || task.contains("読んで")
-        || task.contains("read")
-        || task.contains("ドキュメント")
-        || task.contains("document")
-}
-
-fn used_tool(history: &[AgentStep], action: &str) -> bool {
-    history.iter().any(|step| step.action == action)
-}
-
-fn already_calculated(history: &[AgentStep], expr: &str) -> bool {
-    history
-        .iter()
-        .any(|step| step.action == "calculator" && step.args == expr)
-}
-
-fn direct_calculator(task: &str) -> Option<String> {
-    if let Some(start) = task.find('`') {
-        let rest = &task[start + 1..];
-        if let Some(end) = rest.find('`') {
-            let expr = rest[..end].trim();
-            if looks_like_expression(expr) {
-                return Some(expr.to_string());
+fn tool_definitions() -> Value {
+    serde_json::json!([
+        {
+            "type": "function",
+            "function": {
+                "name": "calculator",
+                "description": "Evaluate a basic arithmetic expression (+, -, *, /, parentheses).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "Arithmetic expression such as 2+2 or (10+5)*2"
+                        }
+                    },
+                    "required": ["expression"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_time",
+                "description": "Return the current UTC time.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Read a file from the bundled read-only filesystem.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative file path such as README.md"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "echo",
+                "description": "Echo the given text back unchanged.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "Text to echo"
+                        }
+                    },
+                    "required": ["text"]
+                }
             }
         }
-    }
-
-    let mut expr = String::new();
-    let mut has_digit = false;
-    for ch in task.chars() {
-        if ch.is_ascii_digit() || "+-*/()".contains(ch) {
-            expr.push(ch);
-            if ch.is_ascii_digit() {
-                has_digit = true;
-            }
-        } else if !expr.is_empty() && has_digit {
-            break;
-        }
-    }
-
-    if has_digit && looks_like_arithmetic(expr.trim()) {
-        return Some(expr.trim().to_string());
-    }
-
-    if task.contains("計算") {
-        for token in task.split_whitespace() {
-            if looks_like_expression(token) {
-                return Some(token.to_string());
-            }
-        }
-    }
-
-    None
+    ])
 }
 
-fn follow_up_calculator(task: &str, history: &[AgentStep]) -> Option<String> {
-    if !task.contains('倍') {
-        return None;
+fn parse_tool_invocation(
+    message: &ChatMessage,
+    tool_calls: &[ToolCall],
+) -> Result<ToolInvocation, String> {
+    let tool_call = tool_calls
+        .first()
+        .ok_or_else(|| "OpenAI returned tool_calls without entries".to_string())?;
+
+    if tool_calls.len() > 1 {
+        return Err("expected at most one tool call per step".to_string());
     }
 
-    let last = history.last()?;
-    if last.action != "get_time" {
-        return None;
+    let args = parse_tool_args(&tool_call.function.name, &tool_call.function.arguments)?;
+
+    Ok(ToolInvocation {
+        thought: message
+            .content
+            .clone()
+            .unwrap_or_else(|| format!("call `{}`", tool_call.function.name)),
+        action: tool_call.function.name.clone(),
+        args,
+    })
+}
+
+fn parse_tool_args(name: &str, raw_args: &str) -> Result<String, String> {
+    let parsed: Value = serde_json::from_str(raw_args)
+        .map_err(|err| format!("invalid tool arguments for `{name}`: {err}"))?;
+
+    match name {
+        "calculator" => parsed
+            .get("expression")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| format!("calculator requires a non-empty `expression`")),
+        "get_time" => Ok(String::new()),
+        "read_file" => parsed
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| format!("read_file requires a non-empty `path`")),
+        "echo" => parsed
+            .get("text")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| format!("echo requires `text`")),
+        other => Err(format!("unknown tool from OpenAI: {other}")),
     }
-
-    let minutes = parse_minutes(&last.observation)?;
-    let multiplier = parse_multiplier(task).unwrap_or(2);
-    Some(format!("{minutes}*{multiplier}"))
-}
-
-fn parse_minutes(observation: &str) -> Option<i64> {
-    let time_part = observation.split_whitespace().next()?;
-    let mut parts = time_part.split(':');
-    let _hours = parts.next()?;
-    let minutes = parts.next()?.parse().ok()?;
-    Some(minutes)
-}
-
-fn parse_multiplier(task: &str) -> Option<i64> {
-    for token in task.split_whitespace() {
-        if let Some(num) = token.strip_suffix('倍') {
-            if let Ok(value) = num.parse::<i64>() {
-                return Some(value);
-            }
-        }
-    }
-
-    for token in task.split_whitespace() {
-        if token.ends_with('倍') {
-            let digits: String = token.chars().take_while(|c| c.is_ascii_digit()).collect();
-            if let Ok(value) = digits.parse::<i64>() {
-                return Some(value);
-            }
-        }
-    }
-
-    None
-}
-
-fn extract_file_path(task: &str) -> Option<String> {
-    for token in task.split_whitespace() {
-        if token.contains('.') && !token.contains("..") {
-            return Some(token.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '_').to_string());
-        }
-    }
-    None
-}
-
-fn looks_like_expression(expr: &str) -> bool {
-    !expr.is_empty()
-        && expr
-            .chars()
-            .all(|c| c.is_ascii_digit() || "+-*/()".contains(c) || c.is_ascii_whitespace())
-        && expr.chars().any(|c| c.is_ascii_digit())
-}
-
-fn looks_like_arithmetic(expr: &str) -> bool {
-    looks_like_expression(expr) && expr.chars().any(|c| "+-*/".contains(c))
-}
-
-pub fn compose_answer(task: &str, history: &[AgentStep]) -> String {
-    if let Some(last) = history.last() {
-        if task.contains('倍') && last.action == "calculator" {
-            return format!("答えは {} です。", last.observation);
-        }
-
-        if last.action == "read_file" {
-            let preview: String = last.observation.chars().take(200).collect();
-            let suffix = if last.observation.chars().count() > 200 {
-                "..."
-            } else {
-                ""
-            };
-            return format!("ファイル内容:\n{preview}{suffix}");
-        }
-
-        if last.action == "get_time" && history.len() == 1 {
-            return format!("現在時刻は {} です。", last.observation);
-        }
-
-        if last.action == "calculator" {
-            return format!("計算結果は {} です。", last.observation);
-        }
-
-        if last.action == "echo" {
-            return format!("{}", last.observation);
-        }
-    }
-
-    "タスクを完了しました。".to_string()
 }

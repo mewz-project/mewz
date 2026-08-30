@@ -62,9 +62,9 @@ pub export fn memory_base() callconv(.c) usize {
     return linear_memory_offset;
 }
 
-pub export fn clock_time_get(clock_id: i32, precision: i64, time_addr: i32) WasiError {
+pub export fn clock_time_get(clock_id: i32, precision: i64, time_addr: u32) WasiError {
     log.debug.printf("WASI clock_time_get: {d} {d} {d}\n", .{ clock_id, precision, time_addr });
-    const time_ptr = @as(*u64, @ptrFromInt(@as(usize, @intCast(time_addr)) + linear_memory_offset));
+    const time_ptr = guest.ptrFromGuest(u64, time_addr);
     time_ptr.* = switch (clock_id) {
         0 => timer.getRealtimeNanoSeconds(), // CLOCKID_REALTIME
         1 => timer.getMonotonicNanoSeconds(), // CLOCKID_MONOTONIC
@@ -82,19 +82,19 @@ pub export fn environ_get(env_addrs: i32, env_buf_addr: i32) WasiError {
 
 // argv_addrs: a pointer to an array of pointers to each argument string, each null-terminated
 // argv_buf_addr: a pointer to a buffer that will be filled with the argument strings
-pub export fn args_get(argv_addrs: i32, argv_buf_addr: i32) WasiError {
+pub export fn args_get(argv_addrs: u32, argv_buf_addr: u32) WasiError {
     log.debug.printf("WASI args_get: {d} {d}\n", .{ argv_addrs, argv_buf_addr });
 
     const argv = args.getArgv();
-    const argv_addrs_ptr = @as([*]i32, @ptrFromInt(@as(usize, @intCast(argv_addrs)) + linear_memory_offset));
-    var buf_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_buf_addr)) + linear_memory_offset));
+    const argv_addrs_ptr = guest.i32ArrayAt(argv_addrs);
+    var buf_ptr = guest.bytesAt(argv_buf_addr);
 
-    var offset: usize = 0;
+    var offset: u32 = 0;
     for (argv, 0..) |arg, i| {
-        argv_addrs_ptr[i] = argv_buf_addr + @as(i32, @intCast(offset));
+        argv_addrs_ptr[i] = @bitCast(argv_buf_addr + offset);
         @memcpy(buf_ptr[offset..][0..arg.len], arg);
         buf_ptr[offset + arg.len] = 0;
-        offset += arg.len + 1;
+        offset +%= @as(u32, @intCast(arg.len)) + 1;
     }
 
     return WasiError.SUCCESS;
@@ -115,10 +115,10 @@ pub export fn environ_sizes_get(env_count_addr: i32, env_buf_size_addr: i32) Was
 
 // argc_addr: a pointer to an integer that will be filled with the number of arguments
 // argv_buf_size_addr: a pointer to an integer that will be filled with the total buffer size needed
-pub export fn args_sizes_get(argc_addr: i32, argv_buf_size_addr: i32) WasiError {
+pub export fn args_sizes_get(argc_addr: u32, argv_buf_size_addr: u32) WasiError {
     log.debug.printf("WASI args_sizes_get: {d} {d}\n", .{ argc_addr, argv_buf_size_addr });
-    const argc_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argc_addr)) + linear_memory_offset));
-    const argv_buf_size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argv_buf_size_addr)) + linear_memory_offset));
+    const argc_ptr = guest.ptrFromGuest(i32, argc_addr);
+    const argv_buf_size_ptr = guest.ptrFromGuest(i32, argv_buf_size_addr);
 
     argc_ptr.* = @intCast(args.getArgc());
     argv_buf_size_ptr.* = @intCast(args.argvBufSize());
@@ -194,7 +194,7 @@ pub export fn fd_pwrite(fd: i32, buf_iovec_addr: i32, vec_len: i32, offset: i64,
     return WasiError.SUCCESS;
 }
 
-pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32) callconv(.c) WasiError {
+pub export fn fd_read(fd: i32, buf_iovec_addr: u32, vec_len: i32, size_addr: u32) callconv(.c) WasiError {
     log.debug.printf("WASI fd_read: fd={d} buf_iovec_addr=0x{x} vec_len={d} size_addr=0x{x}\n", .{ fd, buf_iovec_addr, vec_len, size_addr });
 
     @setRuntimeSafety(false);
@@ -202,20 +202,17 @@ pub export fn fd_read(fd: i32, buf_iovec_addr: i32, vec_len: i32, size_addr: i32
     // get stream from fd
     const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
 
-    var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
-    const iovecs = iovec_ptr[0..@as(usize, @intCast(vec_len))];
+    const iovecs = guest.ioVecsAt(buf_iovec_addr, @as(usize, @intCast(vec_len)));
 
     var buf: []u8 = undefined;
     if (iovecs.len == 1) {
         // fast path: avoid memory allocation and copy
-        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
-        const len = @as(usize, @intCast(iovecs[0].buf_len));
-        buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+        buf = guest.bytesAt(iovecs[0].buf)[0..@as(usize, @intCast(iovecs[0].buf_len))];
     } else {
         buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
     }
 
-    const size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(size_addr)) + linear_memory_offset));
+    const size_ptr = guest.ptrFromGuest(i32, size_addr);
 
     const nread = s.read(buf) catch |err| {
         switch (err) {
@@ -405,27 +402,27 @@ pub export fn path_open(fd: i32, dirflags: i32, path_addr: i32, path_length: i32
     return WasiError.SUCCESS;
 }
 
-pub export fn random_get(addr: i32, l: i32) WasiError {
+pub export fn random_get(addr: u32, l: i32) WasiError {
     log.debug.printf("WASI random_get: {d} {d}\n", .{ addr, l });
 
     const len = @as(usize, @intCast(l));
-    const buf = @as([*]u8, @ptrFromInt(@as(usize, @intCast(addr)) + linear_memory_offset))[0..len];
+    const buf = guest.bytesAt(addr)[0..len];
     rand.X64Random.bytes(buf);
 
     return WasiError.SUCCESS;
 }
 
 pub export fn poll_oneoff(
-    input_addr: i32,
-    output_addr: i32,
+    input_addr: u32,
+    output_addr: u32,
     nsubscriptions: i32,
-    nevents_addr: i32,
+    nevents_addr: u32,
 ) callconv(.c) WasiError {
     log.debug.printf("WASI poll_oneoff: {d} {d} {d} {d}\n", .{ input_addr, output_addr, nsubscriptions, nevents_addr });
 
-    const subscriptions = @as([*]types.Subscription, @ptrFromInt(@as(usize, @intCast(input_addr)) + linear_memory_offset))[0..@as(usize, @intCast(nsubscriptions))];
-    const events = @as([*]types.Event, @ptrFromInt(@as(usize, @intCast(output_addr)) + linear_memory_offset))[0..@as(usize, @intCast(nsubscriptions))];
-    const nevents = @as(*i32, @ptrFromInt(@as(usize, @intCast(nevents_addr)) + linear_memory_offset));
+    const subscriptions = @as([*]types.Subscription, @ptrCast(@alignCast(guest.bytesAt(input_addr))))[0..@as(usize, @intCast(nsubscriptions))];
+    const events = @as([*]types.Event, @ptrCast(@alignCast(guest.bytesAt(output_addr))))[0..@as(usize, @intCast(nsubscriptions))];
+    const nevents = guest.ptrFromGuest(i32, nevents_addr);
 
     nevents.* = poll.poll(subscriptions, events, nsubscriptions);
 
@@ -494,15 +491,26 @@ pub export fn sock_bind(
     return WasiError.SUCCESS;
 }
 
+const default_listen_backlog: u8 = 128;
+const max_listen_backlog: u8 = 255;
+
+fn normalizeListenBacklog(backlog: i32) ?u8 {
+    if (backlog == 0) return null;
+    const value: u32 = if (backlog < 0) default_listen_backlog else @intCast(backlog);
+    return @intCast(@min(value, max_listen_backlog));
+}
+
 pub export fn sock_listen(fd: i32, backlog: i32) WasiError {
     log.debug.printf("WASI sock_listen: {d} {d}\n", .{ fd, backlog });
+
+    const backlog_u8 = normalizeListenBacklog(backlog) orelse return WasiError.INVAL;
 
     var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
     var socket = switch (s.*) {
         Stream.socket => &s.socket,
         else => return WasiError.BADF,
     };
-    socket.listen(backlog) catch return WasiError.INVAL;
+    socket.listen(backlog_u8) catch return WasiError.INVAL;
 
     return WasiError.SUCCESS;
 }
@@ -538,7 +546,7 @@ const RoFlag = enum(i32) {
     RECV_DATA_TRUNCATED = 1,
 };
 
-pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv_len_addr: i32, oflags_addr: i32) WasiError {
+pub export fn sock_recv(fd: i32, iovec_addr: u32, buf_len: i32, flags: i32, recv_len_addr: u32, oflags_addr: u32) WasiError {
     log.debug.printf("WASI sock_recv: {d} {d} {d} {d} {d} {d}\n", .{ fd, iovec_addr, buf_len, flags, recv_len_addr, oflags_addr });
 
     var s = stream.fd_table.get(fd) orelse return WasiError.BADF;
@@ -547,21 +555,18 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
         else => return WasiError.BADF,
     };
 
-    var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(iovec_addr)) + linear_memory_offset));
-    const iovecs = iovec_ptr[0..@as(usize, @intCast(buf_len))];
+    const iovecs = guest.ioVecsAt(iovec_addr, @as(usize, @intCast(buf_len)));
 
     var buf: []u8 = undefined;
     if (iovecs.len == 1) {
         // fast path: avoid memory allocation and copy
-        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
-        const len = @as(usize, @intCast(iovecs[0].buf_len));
-        buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+        buf = guest.bytesAt(iovecs[0].buf)[0..@as(usize, @intCast(iovecs[0].buf_len))];
     } else {
         buf = heap.runtime_allocator.alloc(u8, totalSizeOfIoVecs(iovecs)) catch return WasiError.NOMEM;
     }
 
-    const recv_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(recv_len_addr)) + linear_memory_offset));
-    const oflags_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(oflags_addr)) + linear_memory_offset));
+    const recv_len_ptr = guest.ptrFromGuest(u32, recv_len_addr);
+    const oflags_ptr = guest.ptrFromGuest(u32, oflags_addr);
 
     const recv_len = socket.read(buf) catch |err| {
         switch (err) {
@@ -575,13 +580,13 @@ pub export fn sock_recv(fd: i32, iovec_addr: i32, buf_len: i32, flags: i32, recv
         heap.runtime_allocator.free(buf);
     }
 
-    recv_len_ptr.* = @as(i32, @intCast(recv_len));
+    recv_len_ptr.* = @intCast(recv_len);
     oflags_ptr.* = 0;
 
     return WasiError.SUCCESS;
 }
 
-pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, send_len_addr: i32) WasiError {
+pub export fn sock_send(fd: i32, buf_iovec_addr: u32, buf_len: i32, flags: i32, send_len_addr: u32) WasiError {
     log.debug.printf("WASI sock_send: {d} {d} {d} {d} {d}\n", .{ fd, buf_iovec_addr, buf_len, flags, send_len_addr });
 
     @setRuntimeSafety(false);
@@ -592,14 +597,11 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
         else => return WasiError.BADF,
     };
 
-    var iovec_ptr = @as([*]IoVec, @ptrFromInt(@as(usize, @intCast(buf_iovec_addr)) + linear_memory_offset));
-    const iovecs = iovec_ptr[0..@as(usize, @intCast(buf_len))];
+    const iovecs = guest.ioVecsAt(buf_iovec_addr, @as(usize, @intCast(buf_len)));
 
     if (iovecs.len == 1) {
         // fast path: avoid memory allocation and copy
-        const addr = @as(usize, @intCast(iovecs[0].buf)) + linear_memory_offset;
-        const len = @as(usize, @intCast(iovecs[0].buf_len));
-        const buf = @as([*]u8, @ptrFromInt(addr))[0..len];
+        const buf = guest.bytesAt(iovecs[0].buf)[0..@as(usize, @intCast(iovecs[0].buf_len))];
 
         const sent_len = socket.send(buf) catch |err| {
             switch (err) {
@@ -608,8 +610,8 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
             }
         };
 
-        const send_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(send_len_addr)) + linear_memory_offset));
-        send_len_ptr.* = @as(i32, @intCast(sent_len));
+        const send_len_ptr = guest.ptrFromGuest(u32, send_len_addr);
+        send_len_ptr.* = @intCast(sent_len);
         log.debug.printf("WASI sock_send: buf_len={d}, sent_len={d}\n", .{ buf.len, sent_len });
         return WasiError.SUCCESS;
     }
@@ -617,11 +619,11 @@ pub export fn sock_send(fd: i32, buf_iovec_addr: i32, buf_len: i32, flags: i32, 
     const buf = ioVecsToSlice(iovecs, heap.runtime_allocator) catch return WasiError.NOMEM;
     defer heap.runtime_allocator.free(buf);
 
-    const send_len_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(send_len_addr)) + linear_memory_offset));
+    const send_len_ptr = guest.ptrFromGuest(u32, send_len_addr);
 
     const sent_len = socket.send(buf) catch return WasiError.INVAL;
     log.debug.printf("WASI sock_send: sent {d} bytes\n", .{sent_len});
-    send_len_ptr.* = @as(i32, @intCast(sent_len));
+    send_len_ptr.* = @intCast(sent_len);
 
     return WasiError.SUCCESS;
 }
@@ -787,7 +789,7 @@ pub export fn sock_setsockopt(fd: i32, level: i32, optname: i32, optval_addr: i3
     return WasiError.SUCCESS;
 }
 
-pub export fn sock_getsockopt(fd: i32, level: i32, optname: i32, optval_addr: i32, optlen_addr: i32) WasiError {
+pub export fn sock_getsockopt(fd: i32, level: i32, optname: i32, optval_addr: u32, optlen_addr: u32) WasiError {
     log.debug.printf("WASI sock_getsockopt: {d} {d} {d} {d} {d}\n", .{ fd, level, optname, optval_addr, optlen_addr });
 
     @setRuntimeSafety(false);
@@ -800,8 +802,8 @@ pub export fn sock_getsockopt(fd: i32, level: i32, optname: i32, optval_addr: i3
 
     if (level != 0) return WasiError.INVAL; // SOL_SOCKET
 
-    const optlen_ptr = @as(*u32, @ptrFromInt(@as(usize, @intCast(optlen_addr)) + linear_memory_offset));
-    const optval_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(optval_addr)) + linear_memory_offset));
+    const optlen_ptr = guest.ptrFromGuest(u32, optlen_addr);
+    const optval_ptr = guest.bytesAt(optval_addr);
 
     switch (optname) {
         1 => { // SO_TYPE: stream
@@ -872,14 +874,14 @@ pub export fn sock_getaddrinfo(
 
     if (max_len <= 0) return WasiError.INVAL;
 
-    const node = guest.sliceFromGuest(node_addr, node_len);
-    const service = guest.sliceFromGuest(service_addr, service_len);
+    const node = guest.sliceFromGuest(@bitCast(node_addr), node_len);
+    const service = guest.sliceFromGuest(@bitCast(service_addr), service_len);
     if (node == null and service == null) return WasiError.AINONAME;
 
-    if (hint_addr != 0 and guest.addrinfoHintFamilyIsInet6(hint_addr)) return WasiError.AIFAMILY;
+    if (hint_addr != 0 and guest.addrinfoHintFamilyIsInet6(@bitCast(hint_addr))) return WasiError.AIFAMILY;
 
     const hints: ?*const WasiAddrinfo = if (hint_addr != 0)
-        guest.ptrFromGuest(WasiAddrinfo, @intCast(hint_addr))
+        guest.ptrFromGuest(WasiAddrinfo, @bitCast(hint_addr))
     else
         null;
 

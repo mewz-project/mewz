@@ -10,7 +10,7 @@ It links a single Wasm application into the kernel at build time.
 
 ## Demo tasks
 
-- `2+2を計算して`
-- `今の時刻を教えて`
-- `今の時刻の分を2倍して`
-- `READMEを読んで`
+- `Calculate 2+2`
+- `What time is it now?`
+- `Double the current minute`
+- `Read the README`

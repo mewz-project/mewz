@@ -4,6 +4,7 @@ mod tools;
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
@@ -15,22 +16,61 @@ struct AgentRequest {
     task: String,
 }
 
-async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+fn parse_api_key() -> Result<String, String> {
+    let mut args = std::env::args().skip(1).peekable();
+
+    while let Some(arg) = args.next() {
+        if arg == "--api-key" {
+            return args
+                .next()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "--api-key requires a non-empty value".to_string());
+        }
+
+        if let Some(value) = arg.strip_prefix("--api-key=") {
+            if value.trim().is_empty() {
+                return Err("--api-key requires a non-empty value".to_string());
+            }
+            return Ok(value.to_string());
+        }
+
+        if arg == "--help" || arg == "-h" {
+            print_usage();
+            std::process::exit(0);
+        }
+    }
+
+    std::env::var("OPENAI_API_KEY").map_err(|_| {
+        "missing OpenAI API key: pass --api-key or set OPENAI_API_KEY".to_string()
+    })
+}
+
+fn print_usage() {
+    println!(
+        "Usage: ai_agent --api-key <KEY>\n\
+         \n\
+         Options:\n\
+           --api-key <KEY>   OpenAI API key (required unless OPENAI_API_KEY is set)\n\
+           --help, -h        Show this help message"
+    );
+}
+
+async fn handle(api_key: Arc<String>, req: Request<Body>) -> Result<Response<Body>, Infallible> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => Ok(json_response(
             StatusCode::OK,
             serde_json::json!({
                 "name": "mewz-ai-agent",
-                "mode": "mock-react",
+                "mode": "openai-react",
                 "endpoints": {
                     "GET /": "this help message",
                     "POST /agent": "run the agent with {\"task\": \"...\"}"
                 },
                 "examples": [
-                    {"task": "2+2を計算して"},
-                    {"task": "今の時刻を教えて"},
-                    {"task": "今の時刻の分を2倍して"},
-                    {"task": "READMEを読んで"}
+                    {"task": "Calculate 2+2"},
+                    {"task": "What time is it now?"},
+                    {"task": "Double the current minute"},
+                    {"task": "Read the README"}
                 ]
             }),
         )),
@@ -63,8 +103,15 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
                 ));
             }
 
-            let result = agent::run(payload.task.trim());
-            Ok(json_response(StatusCode::OK, result))
+            match agent::run(&api_key, payload.task.trim()).await {
+                Ok(result) => Ok(json_response(StatusCode::OK, result)),
+                Err(err) => Ok(json_response(
+                    StatusCode::BAD_GATEWAY,
+                    serde_json::json!({
+                        "error": err,
+                    }),
+                )),
+            }
         }
 
         _ => Ok(text_response(
@@ -93,18 +140,26 @@ fn text_response(status: StatusCode, message: String) -> Response<Body> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let api_key = Arc::new(parse_api_key()?);
     let addr = SocketAddr::from(([0, 0, 0, 0], 1234));
     let listener = TcpListener::bind(addr).await?;
 
     println!("Mewz AI Agent listening on http://{addr}");
-    println!("Try: curl -X POST localhost:1234/agent -H 'content-type: application/json' -d '{{\"task\":\"2+2を計算して\"}}'");
+    println!("Try: curl -X POST localhost:1234/agent -H 'content-type: application/json' -d '{{\"task\":\"Calculate 2+2\"}}'");
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let api_key = Arc::clone(&api_key);
 
         tokio::task::spawn(async move {
             if let Err(err) = Http::new()
-                .serve_connection(stream, service_fn(handle))
+                .serve_connection(
+                    stream,
+                    service_fn(move |req| {
+                        let api_key = Arc::clone(&api_key);
+                        handle(api_key, req)
+                    }),
+                )
                 .await
             {
                 println!("Error serving connection: {err:?}");

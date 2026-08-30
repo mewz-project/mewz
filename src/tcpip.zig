@@ -70,10 +70,10 @@ pub const Socket = struct {
         }
     }
 
-    pub fn listen(self: *Self, backlog: i32) Error!void {
+    pub fn listen(self: *Self, backlog: u8) Error!void {
         const pcb = @as(*anyopaque, @ptrFromInt(self.pcb_addr));
 
-        const new_pcb_ptr = lwip.acquire().tcp_listen_with_backlog(pcb, @as(u8, @intCast(backlog)));
+        const new_pcb_ptr = lwip.acquire().tcp_listen_with_backlog(pcb, backlog);
         lwip.release();
         if (new_pcb_ptr == null) {
             return Error.Failed;
