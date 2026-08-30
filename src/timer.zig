@@ -1,7 +1,6 @@
 const std = @import("std");
 const heap = @import("heap.zig");
 const interrupt = @import("interrupt.zig");
-const log = @import("log.zig");
 const param = @import("param.zig");
 const sync = @import("sync.zig");
 const x64 = @import("x64.zig");
@@ -79,10 +78,8 @@ pub fn init() void {
     interrupt.registerIrq(IRQ_TIMER, handleIrq);
 
     const monotonic_at_boot = getMonotonicNanoSeconds();
-    const boot_unix_secs = readRtcUnixSeconds() orelse param.params.epoch orelse blk: {
-        log.debug.print("timer: CMOS RTC unavailable and no epoch= cmdline; using 2026-01-01 UTC\n");
-        break :blk @as(u64, 1767225600); // 2026-01-01 00:00:00 UTC
-    };
+    const boot_unix_secs = readRtcUnixSeconds() orelse param.params.epoch orelse
+        @panic("REALTIME unavailable: CMOS RTC read failed and no epoch= kernel parameter");
     boot_epoch_offset_ns = boot_unix_secs * 1_000_000_000 - monotonic_at_boot;
 }
 

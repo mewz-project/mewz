@@ -48,7 +48,7 @@ On success, serial output shows HTTP status codes (for example `Status: 200` for
 > External network access requires QEMU user networking. The kernel uses DNS server `10.0.2.3` by default.
 
 > [!NOTE]
-> REALTIME is derived from the QEMU CMOS/RTC at boot. You can override it with a kernel cmdline option, for example `epoch=1735689600`.
+> REALTIME is derived from the QEMU CMOS/RTC at boot. If RTC is unavailable, pass a kernel cmdline option such as `epoch=1735689600` (Unix seconds).
 
 ## Dependencies
 
