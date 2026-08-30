@@ -14,13 +14,12 @@ RUSTFLAGS="--cfg wasmedge --cfg tokio_unstable --cfg skip_wasi_unsupported" \
   cargo build --release --target wasm32-wasip1
 ```
 
-The Wasm binary is emitted under `target/wasm32-wasip1/release/deps/` (for example `http_client-*.wasm`).
+The Wasm binary is emitted as `target/wasm32-wasip1/release/http_client.wasm`.
 
 Convert it to a native object file with [Wasker](https://github.com/mewz-project/wasker):
 
 ```sh
-WASM=$(ls target/wasm32-wasip1/release/deps/http_client-*.wasm | head -1)
-wasker "$WASM"
+wasker target/wasm32-wasip1/release/http_client.wasm
 ```
 
 If Wasker is not installed:
@@ -39,7 +38,7 @@ cd ../..
 zig build -Dapp-obj=examples/http_client/wasm.o run
 ```
 
-On success, serial output shows HTTP status codes (for example `Status: 200` for `https://example.com/`).
+On success, serial output shows HTTP status codes (for example `Status: 200 OK` for `https://example.com/`).
 
 > [!NOTE]
 > To quit the QEMU process, press Ctrl+A, then X.
@@ -52,9 +51,9 @@ On success, serial output shows HTTP status codes (for example `Status: 200` for
 
 ## Dependencies
 
-This example follows the [WasmEdge wasmedge_reqwest_demo](https://github.com/WasmEdge/wasmedge_reqwest_demo) approach:
+This example uses [second-state/wasi_reqwest](https://github.com/second-state/wasi_reqwest) with WASI git patches for `tokio`, `socket2`, and `hyper` (same approach as [WasmEdge HTTP client docs](https://wasmedge.org/docs/develop/rust/http_service/client)):
 
-- Git patches for `tokio`, `mio`, `socket2`, `hyper`, and `reqwest` (WASI ports)
 - `reqwest` with `rustls-tls` for HTTPS
+- Git patches required for socket and async I/O on Mewz
 
-Use crates.io `reqwest` on `wasm32-wasip1` without the `wasi_reqwest` patch and it falls back to the browser `fetch` backend, which does not work on Mewz.
+Plain crates.io `reqwest` (without WASI patches) does not provide working HTTP/HTTPS on Mewz.

@@ -775,6 +775,54 @@ pub export fn sock_setsockopt(fd: i32, level: i32, optname: i32, optval_addr: i3
     return WasiError.SUCCESS;
 }
 
+pub export fn sock_getsockopt(fd: i32, level: i32, optname: i32, optval_addr: i32, optlen_addr: i32) WasiError {
+    log.debug.printf("WASI sock_getsockopt: {d} {d} {d} {d} {d}\n", .{ fd, level, optname, optval_addr, optlen_addr });
+
+    @setRuntimeSafety(false);
+
+    const s = stream.fd_table.get(fd) orelse return WasiError.BADF;
+    _ = switch (s.*) {
+        Stream.socket => {},
+        else => return WasiError.BADF,
+    };
+
+    if (level != 0) return WasiError.INVAL; // SOL_SOCKET
+
+    const optlen_ptr = @as(*u32, @ptrFromInt(@as(usize, @intCast(optlen_addr)) + linear_memory_offset));
+    const optval_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(optval_addr)) + linear_memory_offset));
+
+    switch (optname) {
+        1 => { // SO_TYPE: stream
+            if (optlen_ptr.* < 4) return WasiError.INVAL;
+            @as(*i32, @ptrCast(@alignCast(optval_ptr))).* = 2;
+            optlen_ptr.* = 4;
+        },
+        2 => { // SO_ERROR: no pending error
+            if (optlen_ptr.* < 4) return WasiError.INVAL;
+            @as(*i32, @ptrCast(@alignCast(optval_ptr))).* = 0;
+            optlen_ptr.* = 4;
+        },
+        11, 12 => { // SO_RCVTIMEO / SO_SNDTIMEO: zero timeval = no timeout
+            if (optlen_ptr.* < 8) return WasiError.INVAL;
+            @memset(optval_ptr[0..8], 0);
+            optlen_ptr.* = 8;
+        },
+        0, 4, 5, 6, 7, 13 => { // common int socket options
+            if (optlen_ptr.* < 4) return WasiError.INVAL;
+            @as(*i32, @ptrCast(@alignCast(optval_ptr))).* = 0;
+            optlen_ptr.* = 4;
+        },
+        14 => { // SO_BINDTODEVICE: empty string
+            if (optlen_ptr.* < 1) return WasiError.INVAL;
+            optval_ptr[0] = 0;
+            optlen_ptr.* = 1;
+        },
+        else => return WasiError.INVAL,
+    }
+
+    return WasiError.SUCCESS;
+}
+
 fn mapNameresolveError(err: nameresolve.Error) WasiError {
     return switch (err) {
         error.Noname => .AINONAME,

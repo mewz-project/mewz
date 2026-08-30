@@ -43,6 +43,17 @@ pub const Timer = struct {
         };
     }
 
+    pub fn newFromWasiClock(clock_id: u32, timeout: u64, absolute: bool) ?Self {
+        const now = switch (clock_id) {
+            0 => getRealtimeNanoSeconds(),
+            1 => getMonotonicNanoSeconds(),
+            else => return null,
+        };
+        return .{
+            .ns = if (absolute) timeout else now + timeout,
+        };
+    }
+
     pub fn register(self: *Self) Allocator.Error!void {
         try timers.acquire().*.append(self);
         timers.release();

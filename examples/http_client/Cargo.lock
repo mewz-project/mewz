@@ -233,12 +233,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
-name = "hermit-abi"
-version = "0.3.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
-
-[[package]]
 name = "http"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -496,14 +490,13 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.0.2"
-source = "git+https://github.com/second-state/wasi_mio.git?branch=v1.0.x#bed2c0747689887a4355d06e3ba95a231cf64cc5"
+version = "0.8.10"
+source = "git+https://github.com/second-state/wasi_mio.git?branch=v0.8.x#c8dc9eb03db144bceaec887833932f0b509f2893"
 dependencies = [
- "hermit-abi",
  "libc",
  "wasi",
  "wasmedge_wasi_socket",
- "windows-sys 0.52.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -878,8 +871,8 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.40.0"
-source = "git+https://github.com/second-state/wasi_tokio.git?branch=v1.40.x#b853141ae14e8b9d7bd4032bbf3f822bf85775f0"
+version = "1.36.0"
+source = "git+https://github.com/second-state/wasi_tokio.git?branch=v1.36.x#9ecb42d137be73e51d010e5669e31cfe028739bc"
 dependencies = [
  "backtrace",
  "bytes",
@@ -889,13 +882,13 @@ dependencies = [
  "socket2",
  "tokio-macros",
  "wasmedge_wasi_socket",
- "windows-sys 0.52.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "2.4.0"
-source = "git+https://github.com/second-state/wasi_tokio.git?branch=v1.40.x#b853141ae14e8b9d7bd4032bbf3f822bf85775f0"
+version = "2.2.0"
+source = "git+https://github.com/second-state/wasi_tokio.git?branch=v1.36.x#9ecb42d137be73e51d010e5669e31cfe028739bc"
 dependencies = [
  "proc-macro2",
  "quote",
