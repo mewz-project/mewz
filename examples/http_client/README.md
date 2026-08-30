@@ -52,9 +52,9 @@ On success, serial output shows HTTP status codes (for example `Status: 200` for
 
 ## Dependencies
 
-This example follows the [WasmEdge wasmedge_hyper_demo client-https](https://github.com/WasmEdge/wasmedge_hyper_demo/tree/main/client-https) approach:
+This example follows the [WasmEdge wasmedge_reqwest_demo](https://github.com/WasmEdge/wasmedge_reqwest_demo) approach:
 
-- Git patches for `tokio`, `socket2`, and `hyper` (WASI ports)
-- `hyper-rustls` with `webpki-roots` for TLS (sync cert validation; `tokio-runtime` feature required)
+- Git patches for `tokio`, `mio`, `socket2`, `hyper`, and `reqwest` (WASI ports)
+- `reqwest` with `rustls-tls` for HTTPS
 
-Plain `hyper_wasi` does not support HTTPS on its own.
+Use crates.io `reqwest` on `wasm32-wasip1` without the `wasi_reqwest` patch and it falls back to the browser `fetch` backend, which does not work on Mewz.
