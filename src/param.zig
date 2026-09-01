@@ -24,8 +24,16 @@ pub var params = Params{};
 
 // TODO: Add tests
 pub fn parseFromArgs(args: []const u8) void {
+    var after_separator = false;
     var params_itr = std.mem.splitScalar(u8, args, ' ');
     while (params_itr.next()) |part| {
+        if (part.len == 0) continue;
+        if (std.mem.eql(u8, part, "--")) {
+            after_separator = true;
+            continue;
+        }
+        if (after_separator) continue;
+
         var kv = std.mem.splitScalar(u8, part, '=');
 
         const k = kv.next() orelse continue;

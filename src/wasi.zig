@@ -13,6 +13,7 @@ const nameresolve = @import("nameresolve.zig");
 const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
 const guest = @import("wasi/guest.zig");
+const args = @import("args.zig");
 const vfs = @import("vfs.zig");
 const x64 = @import("x64.zig");
 
@@ -84,7 +85,18 @@ pub export fn environ_get(env_addrs: i32, env_buf_addr: i32) WasiError {
 pub export fn args_get(argv_addrs: i32, argv_buf_addr: i32) WasiError {
     log.debug.printf("WASI args_get: {d} {d}\n", .{ argv_addrs, argv_buf_addr });
 
-    // Empty args: nothing to write.
+    const argv = args.getArgv();
+    const argv_addrs_ptr = @as([*]i32, @ptrFromInt(@as(usize, @intCast(argv_addrs)) + linear_memory_offset));
+    var buf_ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_buf_addr)) + linear_memory_offset));
+
+    var offset: usize = 0;
+    for (argv, 0..) |arg, i| {
+        argv_addrs_ptr[i] = argv_buf_addr + @as(i32, @intCast(offset));
+        @memcpy(buf_ptr[offset..][0..arg.len], arg);
+        buf_ptr[offset + arg.len] = 0;
+        offset += arg.len + 1;
+    }
+
     return WasiError.SUCCESS;
 }
 
@@ -108,8 +120,8 @@ pub export fn args_sizes_get(argc_addr: i32, argv_buf_size_addr: i32) WasiError 
     const argc_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argc_addr)) + linear_memory_offset));
     const argv_buf_size_ptr = @as(*i32, @ptrFromInt(@as(usize, @intCast(argv_buf_size_addr)) + linear_memory_offset));
 
-    argc_ptr.* = 0;
-    argv_buf_size_ptr.* = 0;
+    argc_ptr.* = @intCast(args.getArgc());
+    argv_buf_size_ptr.* = @intCast(args.argvBufSize());
 
     return WasiError.SUCCESS;
 }
@@ -905,6 +917,10 @@ pub fn integrationTest() void {
         return;
     }
 
+    if (!testArgs()) {
+        return;
+    }
+
     if (!testVfsPrestat()) {
         return;
     }
@@ -1023,6 +1039,61 @@ fn testReadfile() bool {
         return false;
     }
 
+    return true;
+}
+
+fn testArgs() bool {
+    @setRuntimeSafety(false);
+
+    args.init("ip=10.0.2.15/24 gateway=10.0.2.2 -- myprog arg1 arg2");
+
+    const argc_addr = 2048;
+    const argv_buf_size_addr = 2052;
+    var res = args_sizes_get(argc_addr, argv_buf_size_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("args_sizes_get failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+
+    const argc_val = @as(*i32, @ptrFromInt(@as(usize, argc_addr) + linear_memory_offset)).*;
+    const argv_buf_size = @as(*i32, @ptrFromInt(@as(usize, argv_buf_size_addr) + linear_memory_offset)).*;
+    if (argc_val != 3) {
+        log.fatal.printf("args_sizes_get: expected argc=3, got {d}\n", .{argc_val});
+        return false;
+    }
+    // "myprog\0arg1\0arg2\0" = 7 + 5 + 5 = 17
+    if (argv_buf_size != 17) {
+        log.fatal.printf("args_sizes_get: expected argv_buf_size=17, got {d}\n", .{argv_buf_size});
+        return false;
+    }
+
+    const argv_addrs = 2064;
+    const argv_buf_addr = 2080;
+    res = args_get(argv_addrs, argv_buf_addr);
+    if (@intFromEnum(res) != 0) {
+        log.fatal.printf("args_get failed: {d}\n", .{@intFromEnum(res)});
+        return false;
+    }
+
+    const argv_ptrs = @as([*]i32, @ptrFromInt(@as(usize, argv_addrs) + linear_memory_offset));
+
+    const arg0 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[0])) + linear_memory_offset)), 0);
+    if (!std.mem.eql(u8, arg0, "myprog")) {
+        log.fatal.printf("args_get: arg0 mismatch: {s}\n", .{arg0});
+        return false;
+    }
+    const arg1 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[1])) + linear_memory_offset)), 0);
+    if (!std.mem.eql(u8, arg1, "arg1")) {
+        log.fatal.printf("args_get: arg1 mismatch: {s}\n", .{arg1});
+        return false;
+    }
+    const arg2 = std.mem.sliceTo(@as([*]u8, @ptrFromInt(@as(usize, @intCast(argv_ptrs[2])) + linear_memory_offset)), 0);
+    if (!std.mem.eql(u8, arg2, "arg2")) {
+        log.fatal.printf("args_get: arg2 mismatch: {s}\n", .{arg2});
+        return false;
+    }
+
+    log.info.print("args test: PASSED\n");
     return true;
 }
 

@@ -10,6 +10,7 @@ const BuildParams = struct {
     obj_path: ?[]const u8 = undefined,
     dir_path: ?[]const u8 = undefined,
     mount_path: ?[]const u8 = undefined,
+    guest_args: ?[]const u8 = undefined,
     is_test: bool = undefined,
     log_level: []const u8 = undefined,
 
@@ -45,6 +46,13 @@ const BuildParams = struct {
             params.mount_path = p;
         } else {
             params.mount_path = null;
+        }
+
+        const guest_args_option = b.option([]const u8, "args", "guest command-line arguments passed to the Wasm application");
+        if (guest_args_option) |a| {
+            params.guest_args = a;
+        } else {
+            params.guest_args = null;
         }
 
         const test_option = b.option(bool, "test", "run tests");
@@ -154,6 +162,10 @@ pub fn build(b: *Build) !void {
             run_cmd.addArg("--virtiofs");
             run_cmd.addArg(p);
         }
+        if (params.guest_args) |a| {
+            run_cmd.addArg("--args");
+            run_cmd.addArg(a);
+        }
     }
     run_cmd.step.dependOn(&rewrite_kernel_cmd.step);
 
@@ -169,6 +181,10 @@ pub fn build(b: *Build) !void {
         if (params.mount_path) |p| {
             debug_cmd.addArg("--virtiofs");
             debug_cmd.addArg(p);
+        }
+        if (params.guest_args) |a| {
+            debug_cmd.addArg("--args");
+            debug_cmd.addArg(a);
         }
     }
     debug_cmd.step.dependOn(&rewrite_kernel_cmd.step);

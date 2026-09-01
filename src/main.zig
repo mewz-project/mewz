@@ -9,6 +9,7 @@ const mem = @import("mem.zig");
 const mewz_panic = @import("panic.zig");
 const uart = @import("uart.zig");
 const param = @import("param.zig");
+const args = @import("args.zig");
 const pci = @import("pci.zig");
 const picirq = @import("picirq.zig");
 const stream = @import("stream.zig");
@@ -33,6 +34,7 @@ export fn bspEarlyInit(boot_magic: u32, boot_params: u32) align(16) callconv(.c)
 
     x64.init();
     param.parseFromArgs(cmdline);
+    args.init(cmdline);
 
     uart.init();
     lapic.init();

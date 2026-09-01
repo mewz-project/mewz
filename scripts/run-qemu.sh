@@ -27,12 +27,11 @@ QEMU_ARGS=(
     "filter-dump,id=fiter0,netdev=net0,file=virtio-net.pcap"
     "-device"
     "isa-debug-exit,iobase=0x501,iosize=2"
-    "-append"
-    "ip=10.0.2.15/24 gateway=10.0.2.2 dns=10.0.2.3"
 )
 
 DEBUG=false
 VIRTIOFS_DIR=""
+GUEST_ARGS=""
 
 find_virtiofsd() {
     if command -v virtiofsd >/dev/null 2>&1; then
@@ -67,6 +66,14 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             VIRTIOFS_DIR="$1"
+            ;;
+        --args)
+            shift
+            if [[ $# -eq 0 || "$1" == -* ]]; then
+                echo "missing argument for --args: expected guest command-line arguments" >&2
+                exit 1
+            fi
+            GUEST_ARGS="$1"
             ;;
         -*)
             echo "invalid option"
@@ -116,6 +123,12 @@ fi
 if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
     QEMU_ARGS+=("-accel" "kvm")
 fi
+
+KERNEL_CMDLINE="ip=10.0.2.15/24 gateway=10.0.2.2 dns=10.0.2.3"
+if [[ -n "$GUEST_ARGS" ]]; then
+    KERNEL_CMDLINE+=" -- ${GUEST_ARGS}"
+fi
+QEMU_ARGS+=("-append" "$KERNEL_CMDLINE")
 
 # Let x be the return code of Mewz. Then, the return code of QEMU is 2x+1.
 qemu-system-x86_64 "${QEMU_ARGS[@]}" || QEMU_RETURN_CODE=$(( $? ))

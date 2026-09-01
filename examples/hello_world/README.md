@@ -26,3 +26,16 @@ Now you can run it on Mewz.
 cd ../..
 zig build -Dapp-obj=examples/hello_world/wasm.o run
 ```
+
+To pass command-line arguments to the program:
+
+```sh
+zig build -Dapp-obj=examples/hello_world/wasm.o -Dargs="hello_world Alice Bob" run
+```
+
+Each argument is greeted by name:
+
+```
+Hello, Alice!
+Hello, Bob!
+```
