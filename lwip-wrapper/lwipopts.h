@@ -46,7 +46,8 @@
 #define MEMP_NUM_PBUF                   32768
 #define MEMP_NUM_TCP_SEG                32768
 
-#define TCP_LISTEN_BACKLOG         1024
+#define TCP_LISTEN_BACKLOG              1
+#define TCP_DEFAULT_LISTEN_BACKLOG      128
 
 #define MEMP_NUM_TCP_PCB           1024
 #define MEMP_NUM_TCP_PCB_LISTEN    1024

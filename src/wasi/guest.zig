@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const types = @import("types.zig");
+const IoVec = types.IoVec;
 
 const WasiAddrinfo = types.WasiAddrinfo;
 const WasiAddressFamily = types.WasiAddressFamily;
@@ -23,9 +24,18 @@ pub fn ptrFromGuest(comptime T: type, addr: u32) *T {
     return @ptrFromInt(@as(usize, @intCast(addr)) + memory_base);
 }
 
-pub fn sliceFromGuest(addr: i32, len: i32) ?[]u8 {
+pub fn i32ArrayAt(addr: u32) [*]i32 {
+    return @ptrCast(@alignCast(bytesAt(addr)));
+}
+
+pub fn ioVecsAt(addr: u32, len: usize) []IoVec {
+    const ptr = @as([*]IoVec, @ptrCast(@alignCast(bytesAt(addr))));
+    return ptr[0..len];
+}
+
+pub fn sliceFromGuest(addr: u32, len: i32) ?[]u8 {
     if (addr == 0 or len == 0) return null;
-    const ptr = @as([*]u8, @ptrFromInt(@as(usize, @intCast(addr)) + memory_base));
+    const ptr = bytesAt(addr);
     var slice = ptr[0..@as(usize, @intCast(len))];
     if (slice.len > 0 and slice[slice.len - 1] == 0) {
         slice = slice[0 .. slice.len - 1];
