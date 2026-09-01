@@ -52,6 +52,7 @@ const BuildParams = struct {
             params.is_test = t;
             if (t) {
                 createTestDir(b) catch unreachable;
+                b.graph.poisonCache();
                 params.dir_path = TEST_DIR_PATH;
             }
         } else {

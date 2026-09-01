@@ -3,6 +3,13 @@ name = "http_client"
 version = "0.1.0"
 edition = "2021"
 
+[patch.crates-io]
+tokio = { git = "https://github.com/second-state/wasi_tokio.git", branch = "v1.36.x" }
+socket2 = { git = "https://github.com/second-state/socket2.git", branch = "v0.5.x" }
+hyper = { git = "https://github.com/second-state/wasi_hyper.git", branch = "v0.14.x" }
+reqwest = { git = "https://github.com/second-state/wasi_reqwest.git", branch = "0.11.x" }
+
 [dependencies]
-hyper_wasi = { version = "0.15.2", features = ["client", "http1", "tcp"] }
-tokio_wasi = { version = "1", features = ["rt", "macros", "net", "io-util"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt", "macros", "net", "time"] }
+tokio-util = { version = ">=0.7.1, <0.7.18" }

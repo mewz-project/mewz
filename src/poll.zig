@@ -1,8 +1,11 @@
+const std = @import("std");
 const heap = @import("heap.zig");
 const log = @import("log.zig");
 const stream = @import("stream.zig");
 const timer = @import("timer.zig");
 const types = @import("wasi/types.zig");
+
+const ArrayList = std.array_list.Managed;
 
 const WasiError = types.WasiError;
 const WasiSubscription = types.Subscription;
@@ -69,10 +72,18 @@ const Target = union(enum) {
 
 pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscriptions: i32) i32 {
     var nevents: usize = 0;
+    const n = @as(usize, @intCast(nsubscriptions));
     // FIXME: Can we avoid allocating this?
-    var subscriptions = heap.runtime_allocator.alloc(?Subscription, @as(usize, @intCast(nsubscriptions))) catch @panic("failed to allocate memory for subscriptions: out of memory");
+    var subscriptions = heap.runtime_allocator.alloc(?Subscription, n) catch @panic("failed to allocate memory for subscriptions: out of memory");
+    var clock_timers = ArrayList(*Timer).init(heap.runtime_allocator);
 
     defer heap.runtime_allocator.free(subscriptions);
+    defer {
+        for (clock_timers.items) |t| {
+            heap.runtime_allocator.destroy(t);
+        }
+        clock_timers.deinit();
+    }
     // WARNING: Timers are registered only in this function,
     // so we can unregister all timers here.
     defer timer.unregisterAll();
@@ -119,15 +130,35 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
                 };
             },
             EventType.clock => {
-                var t = if (sub.content.type.clock.isAbsolute())
-                    timer.Timer.newByAbsoluteTime(sub.content.type.clock.timeout)
-                else
-                    timer.Timer.newByRelativeTime(sub.content.type.clock.timeout);
-                t.register() catch @panic("failed to register timer: out of memory");
+                const clock = sub.content.type.clock;
+                const t = heap.runtime_allocator.create(Timer) catch @panic("failed to allocate memory for clock timer: out of memory");
+                t.* = timer.Timer.newFromWasiClock(
+                    clock.identifier,
+                    clock.timeout,
+                    clock.isAbsolute(),
+                ) orelse {
+                    heap.runtime_allocator.destroy(t);
+                    events[nevents] = Event{
+                        .userdata = sub.userdata,
+                        .err = WasiError.INVAL.toU16(),
+                        .eventtype = EventType.clock.toInt(),
+                        .event_fd_readwrite = EventFdReadwrite{ .nbytes = 0, .flags = 0 },
+                    };
+                    nevents += 1;
+                    continue;
+                };
+                t.register() catch {
+                    heap.runtime_allocator.destroy(t);
+                    @panic("failed to register timer: out of memory");
+                };
+                clock_timers.append(t) catch {
+                    heap.runtime_allocator.destroy(t);
+                    @panic("failed to track clock timer: out of memory");
+                };
 
                 subscriptions[i] = Subscription{
                     .target = Target{
-                        .clock = &t,
+                        .clock = t,
                     },
                     .userdata = sub.userdata,
                 };
