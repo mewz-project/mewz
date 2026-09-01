@@ -9,6 +9,7 @@ extern var _binary_build_disk_tar_start: [*]u8;
 pub var files: [FILES_MAX]RegularFile = undefined;
 pub var num_dirs: usize = 0;
 pub var dirs: [FILES_MAX]Directory = undefined;
+pub var regular_file_count: usize = 0;
 
 const TarHeader = extern struct {
     name: [100]u8,
@@ -58,7 +59,11 @@ pub const Directory = struct {
 
     // Get file by relative path from this directory
     pub fn getFileByName(self: *Self, file_name: []const u8) ?*RegularFile {
-        for (&files) |*file| {
+        for (files[0..regular_file_count]) |*file| {
+            if (file.name.len == file_name.len and std.mem.eql(u8, file.name, file_name)) {
+                return file;
+            }
+
             if (file.name.len != self.name.len + file_name.len) {
                 continue;
             }
@@ -181,4 +186,5 @@ pub fn init() void {
     }
 
     num_dirs = i_dir;
+    regular_file_count = i_regular;
 }

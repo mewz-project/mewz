@@ -182,5 +182,5 @@ fn createTestDir(b: *Build) !void {
     cwd.createDirPath(io, TEST_DIR_PATH) catch {};
     var file = try cwd.createFile(io, TEST_DIR_PATH ++ "/test.txt", .{});
     defer file.close(io);
-    try file.writeStreamingAll(io, "fd_read test\n");
+    try file.writeStreamingAll(io, "fd_read test");
 }

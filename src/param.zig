@@ -6,11 +6,17 @@ const Params = struct {
     addr: ?u32 = null,
     subnetmask: ?u32 = null,
     gateway: ?u32 = null,
+    dns: u32 = defaultDns(),
 
     pub fn isNetworkEnabled(self: Params) bool {
         return self.addr != null and self.subnetmask != null and self.gateway != null;
     }
 };
+
+fn defaultDns() u32 {
+    // QEMU user networking default DNS server
+    return parseIp4Address("10.0.2.3") orelse 0x0300020a;
+}
 
 pub var params = Params{};
 
@@ -27,6 +33,10 @@ pub fn parseFromArgs(args: []const u8) void {
             parseIp(v);
         } else if (std.mem.eql(u8, k, "gateway")) {
             params.gateway = parseIp4Address(v) orelse {
+                @panic("invalid ip format");
+            };
+        } else if (std.mem.eql(u8, k, "dns")) {
+            params.dns = parseIp4Address(v) orelse {
                 @panic("invalid ip format");
             };
         } else {

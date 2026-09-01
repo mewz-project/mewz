@@ -32,6 +32,8 @@ const VTable = struct {
     lwip_get_local_port: *const fn (pcb: *anyopaque) callconv(.c) u16 = lwip_get_local_port,
     lwip_get_remote_port: *const fn (pcb: *anyopaque) callconv(.c) u16 = lwip_get_remote_port,
     sys_check_timeouts: *const fn () callconv(.c) void = sys_check_timeouts,
+    lwip_dns_resolve_ipv4: *const fn (hostname: [*:0]const u8, ip_out: *[4]u8) callconv(.c) i32 = lwip_dns_resolve_ipv4,
+    lwip_dns_resolve_result: *const fn (ip_out: *[4]u8) callconv(.c) i32 = lwip_dns_resolve_result,
 };
 
 extern fn lwip_new_tcp_pcb(ip_type: u8) usize;
@@ -50,3 +52,5 @@ extern fn lwip_get_remote_ip(pcb: *anyopaque) *IpAddr;
 extern fn lwip_get_local_port(pcb: *anyopaque) u16;
 extern fn lwip_get_remote_port(pcb: *anyopaque) u16;
 extern fn sys_check_timeouts() void;
+extern fn lwip_dns_resolve_ipv4(hostname: [*:0]const u8, ip_out: *[4]u8) i32;
+extern fn lwip_dns_resolve_result(ip_out: *[4]u8) i32;

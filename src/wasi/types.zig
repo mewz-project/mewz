@@ -346,3 +346,52 @@ pub const SocketType = enum(i32) {
     Datagram = 1,
     Stream = 2,
 };
+
+pub const AiFlags = enum(u16) {
+    Passive = 0,
+    Canonname = 1,
+    NumericHost = 2,
+    NumericServ = 3,
+    V4Mapped = 4,
+    All = 5,
+    AddrConfig = 6,
+};
+
+pub const AiProtocol = enum(u8) {
+    IP = 0,
+    TCP = 1,
+    UDP = 2,
+};
+
+// WasmEdge wasmedge_wasi_socket uses u8 address family in addrinfo/sockaddr.
+pub const WasiAddressFamily = enum(u8) {
+    Unspec = 0,
+    INET4 = 1,
+    INET6 = 2,
+};
+
+pub const WasiSocketType = enum(u8) {
+    Any = 0,
+    Datagram = 1,
+    Stream = 2,
+};
+
+pub const WasiSockaddr = extern struct {
+    family: WasiAddressFamily,
+    sa_data_len: u32,
+    sa_data: u32,
+};
+
+// Match wasmedge_wasi_socket repr(C, packed(4)) on wasm32 (size 28).
+pub const WasiAddrinfo = extern struct {
+    ai_flags: AiFlags,
+    ai_family: WasiAddressFamily,
+    ai_socktype: WasiSocketType,
+    ai_protocol: AiProtocol,
+    _pad: [3]u8,
+    ai_addrlen: u32,
+    ai_addr: u32,
+    ai_canonname: u32,
+    ai_canonnamelen: u32,
+    ai_next: u32,
+};
