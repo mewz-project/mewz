@@ -49,16 +49,13 @@ const Subscription = struct {
                 };
             },
             .clock => |c| {
-                if (c.isFinished()) {
-                    return Event{
-                        .userdata = self.userdata,
-                        .err = WasiError.SUCCESS.toU16(),
-                        .eventtype = EventType.clock.toInt(),
-                        .event_fd_readwrite = EventFdReadwrite{ .nbytes = 0, .flags = 0 },
-                    };
-                } else {
-                    return null;
-                }
+                if (!c.isFinished() and !c.isExpired()) return null;
+                return Event{
+                    .userdata = self.userdata,
+                    .err = WasiError.SUCCESS.toU16(),
+                    .eventtype = EventType.clock.toInt(),
+                    .event_fd_readwrite = EventFdReadwrite{ .nbytes = 0, .flags = 0 },
+                };
             },
         }
     }
