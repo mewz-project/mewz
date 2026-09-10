@@ -1,6 +1,7 @@
 const std = @import("std");
 const heap = @import("heap.zig");
 const interrupt = @import("interrupt.zig");
+const lapic = @import("lapic.zig");
 const param = @import("param.zig");
 const sync = @import("sync.zig");
 const x64 = @import("x64.zig");
@@ -13,35 +14,26 @@ const SpinLock = sync.SpinLock;
 var timers_inner: ArrayList(*Timer) = undefined;
 var timers: SpinLock(ArrayList(*Timer)) = undefined;
 
-var ticks_internal: u64 = 0;
-var ticks = SpinLock(u64).new(&ticks_internal);
-
-/// REALTIME = boot_epoch_offset_ns + monotonic_ns
-var boot_epoch_offset_ns: u64 = 0;
+var boot_tsc: u64 = 0;
+var boot_epoch_ns: u64 = 0;
+var tsc_freq_hz: u64 = 0;
 
 pub const IRQ_TIMER = 0;
-const frequency = 1000; // TODO: measure frequency while booting
 
 const cmos_index_port: u16 = 0x70;
 const cmos_data_port: u16 = 0x71;
 
+const LAPIC_TCCR = 0x0390 / @sizeOf(u32);
+const LAPIC_TICR = 0x0380 / @sizeOf(u32);
+const lapic_timer_hz: u64 = 1000;
+const lapic_calibration_wraps: u32 = 100;
+
 pub const Timer = struct {
     ns: u64,
-    is_finished_internal: bool = false, // should be atomic
+    clock_id: u32,
+    is_finished_internal: bool = false,
 
     const Self = @This();
-
-    pub fn newByAbsoluteTime(ns: u64) Self {
-        return .{
-            .ns = ns,
-        };
-    }
-
-    pub fn newByRelativeTime(ns: u64) Self {
-        return .{
-            .ns = getMonotonicNanoSeconds() + ns,
-        };
-    }
 
     pub fn newFromWasiClock(clock_id: u32, timeout: u64, absolute: bool) ?Self {
         const now = switch (clock_id) {
@@ -51,6 +43,7 @@ pub const Timer = struct {
         };
         return .{
             .ns = if (absolute) timeout else now + timeout,
+            .clock_id = clock_id,
         };
     }
 
@@ -62,18 +55,27 @@ pub const Timer = struct {
     pub fn isFinished(self: *Self) bool {
         return @atomicLoad(bool, &self.*.is_finished_internal, std.builtin.AtomicOrder.seq_cst);
     }
+
+    pub fn nowNanoSeconds(self: *const Self) u64 {
+        return switch (self.clock_id) {
+            0 => getRealtimeNanoSeconds(),
+            1 => getMonotonicNanoSeconds(),
+            else => getMonotonicNanoSeconds(),
+        };
+    }
+
+    pub fn isExpired(self: *const Self) bool {
+        return self.nowNanoSeconds() >= self.ns;
+    }
 };
 
 pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
 
-    ticks.acquire().* += 1;
-    ticks.release();
-
     var timer_list = timers.acquire();
-    for (timer_list.items, 0..) |timer, i| {
-        if (timer.ns <= getMonotonicNanoSeconds()) {
-            timer.*.is_finished_internal = true;
+    for (timer_list.items, 0..) |t, i| {
+        if (t.isExpired()) {
+            t.is_finished_internal = true;
             _ = timer_list.swapRemove(i);
         }
     }
@@ -82,26 +84,53 @@ pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
     net.flush();
 }
 
+fn calibrateTscFromLapicTimer() u64 {
+    var last = lapic.lapic[LAPIC_TCCR];
+    while (last == lapic.lapic[LAPIC_TICR]) {
+        last = lapic.lapic[LAPIC_TCCR];
+    }
+
+    const start_tsc = x64.rdtsc();
+    var wraps: u32 = 0;
+    while (wraps < lapic_calibration_wraps) {
+        const cur = lapic.lapic[LAPIC_TCCR];
+        if (cur > last) wraps += 1;
+        last = cur;
+    }
+    const tsc_delta = x64.rdtsc() - start_tsc;
+    return (tsc_delta * lapic_timer_hz) / lapic_calibration_wraps;
+}
+
+fn detectTscFrequencyHz() u64 {
+    if (x64.kvmTscFrequencyHz()) |hz| return hz;
+    return calibrateTscFromLapicTimer();
+}
+
 pub fn init() void {
+    tsc_freq_hz = detectTscFrequencyHz();
+    boot_tsc = x64.rdtsc();
+
+    const boot_unix_secs = readRtcUnixSeconds() orelse param.params.epoch orelse
+        @panic("REALTIME unavailable: CMOS RTC read failed and no epoch= kernel parameter");
+    boot_epoch_ns = boot_unix_secs * 1_000_000_000;
+
     timers_inner = ArrayList(*Timer).init(heap.runtime_allocator);
     timers = SpinLock(ArrayList(*Timer)).new(&timers_inner);
 
     interrupt.registerIrq(IRQ_TIMER, handleIrq);
+}
 
-    const monotonic_at_boot = getMonotonicNanoSeconds();
-    const boot_unix_secs = readRtcUnixSeconds() orelse param.params.epoch orelse
-        @panic("REALTIME unavailable: CMOS RTC read failed and no epoch= kernel parameter");
-    boot_epoch_offset_ns = boot_unix_secs * 1_000_000_000 - monotonic_at_boot;
+fn tscToNanoSeconds(tsc: u64) u64 {
+    const ns = (@as(u128, tsc) * 1_000_000_000) / @as(u128, tsc_freq_hz);
+    return @intCast(ns);
 }
 
 pub fn getMonotonicNanoSeconds() u64 {
-    const t = ticks.acquire().*;
-    ticks.release();
-    return t * (1_000_000_000 / frequency);
+    return tscToNanoSeconds(x64.rdtsc() - boot_tsc);
 }
 
 pub fn getRealtimeNanoSeconds() u64 {
-    return boot_epoch_offset_ns + getMonotonicNanoSeconds();
+    return boot_epoch_ns + getMonotonicNanoSeconds();
 }
 
 pub fn getNanoSeconds() u64 {

@@ -124,7 +124,6 @@ pub fn registerIrq(irq: u8, handler: IrqHandler) void {
     irq_entry.count += 1;
 }
 
-var ticks: u32 = 0;
 export fn commonInterruptHandler(trapno: u8, frame: *InterruptFrame) callconv(.c) void {
     switch (trapno) {
         T_BRKPT => {

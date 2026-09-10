@@ -4,11 +4,22 @@ set -ex
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd $REPO_ROOT
 
+USE_KVM=false
+if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+    USE_KVM=true
+fi
+
+if $USE_KVM; then
+    QEMU_CPU="Icelake-Server,+invtsc,vmware-cpuid-freq=on"
+else
+    QEMU_CPU="Icelake-Server"
+fi
+
 QEMU_ARGS=(
     "-kernel"
     "zig-out/bin/mewz.qemu.elf"
     "-cpu"
-    "Icelake-Server"
+    "$QEMU_CPU"
     "-m"
     "512"
     "-device"
@@ -120,7 +131,7 @@ if [[ -n "$VIRTIOFS_DIR" ]]; then
     )
 fi
 
-if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+if $USE_KVM; then
     QEMU_ARGS+=("-accel" "kvm")
 fi
 
