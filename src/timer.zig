@@ -1,19 +1,9 @@
-const std = @import("std");
-const heap = @import("heap.zig");
 const interrupt = @import("interrupt.zig");
 const lapic = @import("lapic.zig");
 const log = @import("log.zig");
 const param = @import("param.zig");
-const sync = @import("sync.zig");
 const x64 = @import("x64.zig");
 const net = @import("drivers/virtio/net.zig");
-
-const Allocator = std.mem.Allocator;
-const ArrayList = std.array_list.Managed;
-const SpinLock = sync.SpinLock;
-
-var timers_inner: ArrayList(*Timer) = undefined;
-var timers: SpinLock(ArrayList(*Timer)) = undefined;
 
 var boot_tsc: u64 = 0;
 var boot_epoch_ns: u64 = 0;
@@ -31,7 +21,6 @@ const lapic_calibration_wraps: u32 = 100;
 pub const Timer = struct {
     ns: u64,
     clock_id: u32,
-    is_finished_internal: bool = false,
 
     const Self = @This();
 
@@ -47,33 +36,18 @@ pub const Timer = struct {
         };
     }
 
-    pub fn register(self: *Self) Allocator.Error!void {
-        try timers.acquire().*.append(self);
-        timers.release();
-    }
-
-    pub fn isFinished(self: *Self) bool {
-        return @atomicLoad(bool, &self.*.is_finished_internal, std.builtin.AtomicOrder.seq_cst);
+    pub fn isFinished(self: *const Self) bool {
+        const now = switch (self.clock_id) {
+            0 => getRealtimeNanoSeconds(),
+            1 => getMonotonicNanoSeconds(),
+            else => getMonotonicNanoSeconds(),
+        };
+        return now >= self.ns;
     }
 };
 
 pub fn handleIrq(frame: *interrupt.InterruptFrame) void {
     _ = frame;
-
-    var timer_list = timers.acquire();
-    for (timer_list.items, 0..) |t, i| {
-        const now = switch (t.clock_id) {
-            0 => getRealtimeNanoSeconds(),
-            1 => getMonotonicNanoSeconds(),
-            else => getMonotonicNanoSeconds(),
-        };
-        if (t.ns <= now) {
-            t.is_finished_internal = true;
-            _ = timer_list.swapRemove(i);
-        }
-    }
-    timers.release();
-
     net.flush();
 }
 
@@ -111,9 +85,6 @@ pub fn init() void {
         @panic("REALTIME unavailable: CMOS RTC read failed and no epoch= kernel parameter");
     boot_epoch_ns = boot_unix_secs * 1_000_000_000;
 
-    timers_inner = ArrayList(*Timer).init(heap.runtime_allocator);
-    timers = SpinLock(ArrayList(*Timer)).new(&timers_inner);
-
     interrupt.registerIrq(IRQ_TIMER, handleIrq);
 }
 
@@ -132,11 +103,6 @@ pub fn getRealtimeNanoSeconds() u64 {
 
 pub fn getNanoSeconds() u64 {
     return getMonotonicNanoSeconds();
-}
-
-pub fn unregisterAll() void {
-    timers.acquire().*.clearRetainingCapacity();
-    timers.release();
 }
 
 export fn sys_now() callconv(.c) i32 {

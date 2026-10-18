@@ -81,10 +81,6 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
         }
         clock_timers.deinit();
     }
-    // WARNING: Timers are registered only in this function,
-    // so we can unregister all timers here.
-    defer timer.unregisterAll();
-
     for (wasi_subscriptions, 0..) |sub, i| {
         const eventtype = EventType.fromInt(sub.content.tag);
         if (eventtype == null) {
@@ -143,10 +139,6 @@ pub fn poll(wasi_subscriptions: []WasiSubscription, events: []Event, nsubscripti
                     };
                     nevents += 1;
                     continue;
-                };
-                t.register() catch {
-                    heap.runtime_allocator.destroy(t);
-                    @panic("failed to register timer: out of memory");
                 };
                 clock_timers.append(t) catch {
                     heap.runtime_allocator.destroy(t);
