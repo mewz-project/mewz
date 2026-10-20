@@ -45,7 +45,7 @@ pub fn init() void {
     // Enable local APIC; set spurious interrupt vector.
     lapicw(SVR, ENABLE | (interrupt.T_IRQ0 + interrupt.IRQ_SPURIOUS));
 
-    // Periodic LAPIC timer for software timers and network flush.
+    // Periodic LAPIC timer for network flush.
     lapicw(TDCR, X1);
     lapicw(TIMER, PERIODIC | (interrupt.T_IRQ0 + timer.IRQ_TIMER));
     lapicw(TICR, 1000000);
