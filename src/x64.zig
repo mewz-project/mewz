@@ -135,6 +135,71 @@ pub fn shutdown(status: u16) void {
     out(0x501, status);
 }
 
+pub const CpuidResult = struct {
+    eax: u32,
+    ebx: u32,
+    ecx: u32,
+    edx: u32,
+};
+
+pub fn cpuid(leaf: u32, subleaf: u32) CpuidResult {
+    var eax: u32 = leaf;
+    var ebx: u32 = undefined;
+    var ecx: u32 = subleaf;
+    var edx: u32 = undefined;
+    asm volatile ("cpuid"
+        : [eax] "+{eax}" (eax),
+          [ebx] "={ebx}" (ebx),
+          [ecx] "+{ecx}" (ecx),
+          [edx] "={edx}" (edx),
+    );
+    return .{
+        .eax = eax,
+        .ebx = ebx,
+        .ecx = ecx,
+        .edx = edx,
+    };
+}
+
+pub fn rdtsc() u64 {
+    var lo: u32 = undefined;
+    var hi: u32 = undefined;
+    asm volatile ("rdtsc"
+        : [lo] "={eax}" (lo),
+          [hi] "={edx}" (hi),
+    );
+    return (@as(u64, hi) << 32) | lo;
+}
+
+const kvm_cpuid_signature: u32 = 0x4000_0000;
+const kvm_cpuid_timing_info: u32 = 0x4000_0010;
+const kvm_signature_ebx: u32 = 0x4b4d_564b; // "KVMK"
+const kvm_signature_ecx: u32 = 0x564b_4d56; // "VMKV"
+const kvm_signature_edx: u32 = 0x0000_004d; // "M"
+
+/// Returns TSC frequency in Hz from the KVM PV timing CPUID leaf (0x40000010).
+/// EAX holds the virtual TSC frequency in kHz.
+pub fn kvmTscFrequencyHz() ?u64 {
+    const signature = cpuid(kvm_cpuid_signature, 0);
+    if (signature.ebx != kvm_signature_ebx or
+        signature.ecx != kvm_signature_ecx or
+        signature.edx != kvm_signature_edx)
+    {
+        return null;
+    }
+
+    if (signature.eax < kvm_cpuid_timing_info) {
+        return null;
+    }
+
+    const timing = cpuid(kvm_cpuid_timing_info, 0);
+    if (timing.eax == 0) {
+        return null;
+    }
+
+    return @as(u64, timing.eax) * 1000;
+}
+
 fn enableSSE() void {
     asm volatile (
         \\.intel_syntax noprefix
