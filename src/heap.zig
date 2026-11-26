@@ -91,8 +91,7 @@ fn rawCAlloc(
     _ = lock.acquire();
     defer lock.release();
 
-    // newlib's malloc returns 16-byte aligned memory
-    std.debug.assert(alignment.compare(.lte, .@"16"));
+    std.debug.assert(alignment.compare(.lte, .of(std.c.max_align_t)));
     // Note that this pointer cannot be aligncasted to max_align_t because if
     // len is < max_align_t then the alignment can be smaller. For example, if
     // max_align_t is 16, but the user requests 8 bytes, there is no built-in
