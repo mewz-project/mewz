@@ -16,7 +16,7 @@ pub const Error = error{
     InvalidDevice,
 };
 
-pub const Config = packed struct {
+pub const Config = bitpack struct {
     vendor_id: u16,
     device_id: u16,
     command: u16,

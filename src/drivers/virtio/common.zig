@@ -276,7 +276,7 @@ pub const VirtqDescFlag = enum(u16) {
     INDIRECT = 4,
 };
 
-pub const VirtqDesc = packed struct {
+pub const VirtqDesc = bitpack struct {
     addr: u64,
     len: u32,
     flags: u16,
@@ -338,7 +338,7 @@ pub const AvailRing = struct {
 };
 
 pub const UsedRing = struct {
-    const UsedRingEntry = packed struct {
+    const UsedRingEntry = bitpack struct {
         id: u32,
         len: u32,
     };

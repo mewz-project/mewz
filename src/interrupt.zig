@@ -33,7 +33,7 @@ const IrqHandlerList = struct {
 
 var irq_handlers: [256]IrqHandlerList = @splat(.{});
 
-pub const InterruptDescriptor = packed struct {
+pub const InterruptDescriptor = bitpack struct {
     off_15_0: u16, // low 16 bits of offset in segment
     cs: u16, // code segment selector
     ist: u3, // # interrupt stack table, 0 for interrupt/trap gates
@@ -67,7 +67,7 @@ pub const InterruptDescriptor = packed struct {
 
 // Layout of the interrupt frame built on the stack by the
 // hardware and by interrupt.S, and passed to common_interrupt_handler().
-pub const InterruptFrame = packed struct {
+pub const InterruptFrame = bitpack struct {
     rax: u64,
     rbx: u64,
     rcx: u64,

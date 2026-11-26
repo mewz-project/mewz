@@ -172,7 +172,7 @@ const VirtioNet = struct {
     }
 };
 
-const VirtioNetDeviceConfig = packed struct {
+const VirtioNetDeviceConfig = bitpack struct {
     mac: u48,
     status: u16,
     max_virtqueue_pairs: u16,
