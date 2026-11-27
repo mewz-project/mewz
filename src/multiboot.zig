@@ -1,5 +1,5 @@
 // https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Boot-information-format
-pub const BootInfo = packed struct {
+pub const BootInfo = bitpack struct {
     // Multiboot info version number.
     flags: u32,
 
@@ -54,7 +54,7 @@ pub const BootInfo = packed struct {
 // 16      | type              |
 //         +-------------------+
 // from: https://www.gnu.org/software/grub/manual/multiboot/multiboot.html#Boot-information-format
-pub const MemoryMap = packed struct {
+pub const MemoryMap = bitpack struct {
     size: u32,
     base: u64,
     length: u64,

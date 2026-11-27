@@ -104,6 +104,7 @@ pub fn build(b: *Build) !void {
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .x86_64,
         .os_tag = .freestanding,
+        .abi = .none,
         .ofmt = .elf,
     });
 

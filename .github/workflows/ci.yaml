@@ -26,9 +26,7 @@ jobs:
           cache: true
 
       - name: Install packages for running tests
-        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
-        with:
-          packages: qemu-system mtools virtiofsd
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qemu-system-x86 mtools virtiofsd
 
       - name: Cache mewz
         uses: actions/cache@v6
