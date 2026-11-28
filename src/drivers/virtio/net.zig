@@ -58,7 +58,6 @@ const VirtioNet = struct {
 
     mac_addr: [6]u8,
 
-    tx_ring_index: usize,
     tx_ring: []u8,
     rx_ring: []u8,
 
@@ -71,7 +70,6 @@ const VirtioNet = struct {
         var self = Self{
             .virtio = virtio,
             .mac_addr = mac_addr,
-            .tx_ring_index = 0,
             .tx_ring = undefined,
             .rx_ring = undefined,
         };
@@ -111,9 +109,15 @@ const VirtioNet = struct {
     ) void {
         @setRuntimeSafety(false);
 
-        const idx = self.tx_ring_index % self.transmitq().num_descs;
-        const base = @intFromPtr(&virtio_net.tx_ring[idx * PACKET_MAX_LEN]);
-        defer self.tx_ring_index +%= 1;
+        const tq = self.transmitq();
+        while (tq.num_free_descs == 0) {
+            if (tq.popUsedOne() == null) {
+                self.virtio.transport.notifyQueue(tq);
+            }
+        }
+
+        const idx = tq.free_desc_head_idx;
+        const base = @intFromPtr(&virtio_net.tx_ring[@as(usize, idx) * PACKET_MAX_LEN]);
 
         const header = @as(*Header, @ptrFromInt(base));
         header.* = Header{
