@@ -1,0 +1,26 @@
+name: Benchmark dispatch
+on:
+  push:
+    branches: [main]
+  issue_comment:
+    types: [created]
+permissions: {}
+jobs:
+  dispatch:
+    if: >-
+      github.repository == 'mewz-project/mewz' && (github.event_name == 'push' ||
+      (github.event.issue.pull_request && github.event.comment.body == '/bench' &&
+      github.event.comment.author_association == 'COLLABORATOR'))
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.BENCH_DISPATCH_TOKEN }}
+          READ_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+          SHA: ${{ github.sha }}
+          COMMENT: ${{ github.event.comment.id }}
+        run: |
+          if [ -n "$PR" ]; then SHA=$(GH_TOKEN=$READ_TOKEN gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha); fi
+          gh workflow run bench.yml -R mewz-project/mewz-benchmark -f mewz_ref="$SHA" -f pr="$PR" -f comment="$COMMENT"
